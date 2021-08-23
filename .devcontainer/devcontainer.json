@@ -1,0 +1,33 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
+// https://github.com/microsoft/vscode-dev-containers/tree/v0.187.0/containers/cpp
+{
+	"name": "C++",
+	"image": "cblauvelt/vscode-cpp",
+	"runArgs": [
+		"--cap-add=SYS_PTRACE",
+		"--security-opt",
+		"seccomp=unconfined"
+	],
+	// Set *default* container specific settings.json values on container create.
+	"settings": {},
+	// Add the IDs of extensions you want installed when the container is created.
+	"extensions": [
+		"ms-vscode.cpptools",
+		"ms-vscode.cpptools-extension-pack",
+		"ms-vsliveshare.vsliveshare",
+		"notskm.clang-tidy",
+		"cschlosser.doxdocgen"
+	],
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	// "forwardPorts": [],
+	// Mount the conan directory
+	"mounts": [
+		"source=conan,target=/home/vscode/.conan"
+	],
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// Use False if you're using a remote with a valid https cert.
+	// --insert without a parameter places it first in the list when searching for a package
+	// "postCreateCommand": "conan remote add <remote-name> https://<ip-address>/artifactory/api/conan/conan-local False --insert",
+	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
+	"remoteUser": "vscode"
+}
