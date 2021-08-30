@@ -1,3 +1,4 @@
+#include <boost/asio.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -16,8 +17,8 @@ using boost::asio::experimental::as_tuple;
 
 namespace this_coro = boost::asio::this_coro;
 
-awaitable<void> echo_once(tcp::socket& socket);
+awaitable<void> slow_echo_once(tcp::socket& socket);
 
-awaitable<void> echo(tcp::socket socket);
+awaitable<void> slow_echo(tcp::socket socket);
 
-awaitable<void> echo_listener(uint16_t port_num);
+awaitable<void> slow_echo_listener(uint16_t port_num);

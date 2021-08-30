@@ -20,6 +20,7 @@
 #include <boost/asio/experimental/as_tuple.hpp>
 
 #include "types.hpp"
+#include "timer.hpp"
 
 using boost::asio::awaitable;
 using boost::asio::co_spawn;
@@ -34,6 +35,7 @@ using boost::asio::experimental::as_tuple_t;
 namespace cpool {
 
 namespace asio = boost::asio;
+using milliseconds = std::chrono::milliseconds;
 using boost::asio::ip::tcp;
 
 /**
@@ -63,25 +65,23 @@ public:
     tcp_connection() = delete;
 
     tcp_connection(boost::asio::io_context& io_context) :
-        mContext(io_context),
-        mSocket(io_context),
-        mTimer(io_context),
-        mTimeout(defaultTimeout),
-        mHost(),
-        mPort(0),
-        mState(connection_state::disconnected),
-        mStateChangeHandler()
+        ctx_(io_context),
+        socket_(io_context),
+        timer_(io_context),
+        host_(),
+        port_(0),
+        state_(connection_state::disconnected),
+        state_change_handler_()
     {}
 
     tcp_connection(boost::asio::io_context& io_context, std::string host, uint16_t port) :
-        mContext(io_context),
-        mSocket(io_context),
-        mTimer(io_context),
-        mTimeout(defaultTimeout),
-        mHost(host),
-        mPort(port),
-        mState(connection_state::disconnected),
-        mStateChangeHandler()
+        ctx_(io_context),
+        socket_(io_context),
+        timer_(io_context),
+        host_(host),
+        port_(port),
+        state_(connection_state::disconnected),
+        state_change_handler_()
     {}
 
     tcp_connection(const tcp_connection&) = delete;
@@ -94,7 +94,7 @@ public:
      * may prevent the interface from recognizing changes in state.
      */
     tcp::socket& socket() {
-        return mSocket;
+        return socket_;
     }
 
     /**
@@ -107,8 +107,8 @@ public:
      */
     void set_host(std::string host) {
         // Don't change the host if a connection is already established
-        if(!mSocket.is_open()) {
-            mHost = host;   
+        if(!socket_.is_open()) {
+            host_ = host;   
         }
     }
 
@@ -117,7 +117,7 @@ public:
      * @returns The host name or IP address of the requested remote endpoint.
      */
     std::string host() const {
-        return mHost;
+        return host_;
     }
 
     /**
@@ -130,8 +130,8 @@ public:
      */
     void set_port(uint16_t port) {
         // Don't change the port if a connection is already established
-        if(!mSocket.is_open()) {
-            mPort = port;   
+        if(!socket_.is_open()) {
+            port_ = port;   
         }
     }
 
@@ -139,29 +139,33 @@ public:
      * @returns The port number on the remote endpoint.
      */
     uint16_t port() const {
-        return mPort;
+        return port_;
     }
 
     /**
-     * @brief Sets the timeout interval in milliseconds for connection requests. The default is 10 s.
-     * @param milliseconds The timeout interval in milliseconds
+     * @brief Sets the amount of time before a blocking call will return.
+     * @param ms The timeout interval in milliseconds
      */
-    void set_timeout(uint32_t milliseconds) {
-        mTimeout = milliseconds;
+    void expires_after(milliseconds ms) {
+        timer_.expires_after(ms);
+    }
+
+    void expires_never() {
+        timer_.expires_never();
     }
 
     /**
-     * @returns The connection timeout interval in milliseconds.
+     * @returns The time remaining before the timer expires.
      */
-    uint32_t timeout() const {
-        return mTimeout;
+    std::chrono::steady_clock::time_point expires() const {
+        return timer_.expires();
     }
 
     /**
      * @returns Whether the socket is connected.
      */
     bool connected() const {
-        return (mState == connection_state::connected && mSocket.is_open());
+        return (state_ == connection_state::connected && socket_.is_open());
     }
 
     /**
@@ -169,15 +173,15 @@ public:
      * @param handler The function oject to call.
      */
     void set_state_change_handler(connection_state_change_handler handler) {
-        mStateChangeHandler = std::move(handler);
+        state_change_handler_ = std::move(handler);
     }
 
     /**
      * @returns How many bytes can be read without blocking.
      */
-    std::tuple<size_t, boost::system::error_code> bytesAvailable() const {
+    std::tuple<size_t, boost::system::error_code> bytes_available() const {
         boost::system::error_code error;
-        size_t size = mSocket.available(error);
+        size_t size = socket_.available(error);
         return std::make_tuple(size, error);
     }
 
@@ -186,48 +190,52 @@ public:
      * @param handler The callback to execute once this function is complete.
      */
     awaitable<boost::system::error_code> connect() {
-        if(mHost.empty() || mPort == 0) {
-            // TODO: send a better error
-            co_return boost::asio::error::eof;
+        if(host_.empty() || port_ == 0) {
+            co_return boost::asio::error::operation_aborted;
         }
         
         set_state(connection_state::resolving);
 
-        tcp::resolver resolver(mSocket.get_executor());
+        tcp::resolver resolver(socket_.get_executor());
         auto [error, endpoints] = co_await resolver.async_resolve(
-            mHost,
-            std::to_string(mPort),
+            host_,
+            std::to_string(port_),
             as_tuple(use_awaitable));
 
         if (error) {
             co_return error;
         }
 
-        std::tie(error, mEndpoint) = co_await asio::async_connect(mSocket, endpoints, as_tuple(use_awaitable));
+        set_state(connection_state::connecting);
+        std::tie(error, endpoint_) = co_await asio::async_connect(socket_, endpoints, as_tuple(use_awaitable));
+        if(error) {
+            set_state(connection_state::disconnected);
+        } else {
+            set_state(connection_state::connected);
+        }
         co_return error;
     }
 
     /**
      * @brief Disconnects the TcpConnection object making it no longer able to interact with the remote endpoint.
      */
-    awaitable<boost::system::error_code>  disconnect() {
-        if(!mSocket.is_open()) {
-            co_return boost::asio::error::eof;
+    awaitable<boost::system::error_code> disconnect() {
+        boost::system::error_code error;
+
+        if(!socket_.is_open()) {
+            co_return boost::asio::error::not_connected;
         }
 
         set_state(connection_state::disconnecting);
-        boost::system::error_code error;
-        mSocket.shutdown(tcp::socket::shutdown_both, error);
+        socket_.shutdown(tcp::socket::shutdown_both, error);
         if(error) {
             co_return error;
         }
         
-        mSocket.close(error);
-        if(error) {
-            co_return error;
-        }
-
+        socket_.close(error);
         set_state(connection_state::disconnected);
+        
+        co_return error;
     }
 
     /**
@@ -237,7 +245,7 @@ public:
      */
     template <typename bT>
     awaitable<write_result_t> write(const bT& buffer) {
-        return asio::async_write(mSocket, buffer, as_tuple(use_awaitable));
+        return asio::async_write(socket_, buffer, as_tuple(use_awaitable));
     }
 
     /**
@@ -247,7 +255,7 @@ public:
      */
     template <typename bT>
     awaitable<write_result_t> write(const bT&& buffer) {
-        return asio::async_write(mSocket, buffer, as_tuple(use_awaitable));
+        return asio::async_write(socket_, buffer, as_tuple(use_awaitable));
     }
 
     /**
@@ -256,7 +264,22 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read(const bT& buffer) {
-        return asio::async_read(mSocket, buffer, as_tuple(use_awaitable));
+        // if no timeout, wait forever
+        if(!timer_.pending()) {
+            read_result_t result = co_await asio::async_read(socket_, buffer, as_tuple(use_awaitable));
+            co_return result;
+        }
+
+        std::variant<read_result_t, std::monostate> response = co_await (
+            asio::async_read(socket_, buffer, as_tuple(use_awaitable)) ||
+            timer_.async_wait()
+        );
+
+        if(std::holds_alternative<std::monostate>(response)) {
+            co_return std::make_tuple<boost::system::error_code, size_t>(boost::asio::error::timed_out, 0);
+        }
+
+        co_return std::get<read_result_t>(response);
     }
 
     /**
@@ -265,7 +288,8 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read(const bT&& buffer) {
-        return asio::async_read(mSocket, buffer, as_tuple(use_awaitable));
+        const bT& tempBuffer = buffer;
+        return read(tempBuffer);
     }
 
     /**
@@ -275,7 +299,7 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read_some( const bT& buffer) {
-        return mSocket.async_read_some(buffer, as_tuple(use_awaitable));
+        return socket_.async_read_some(buffer, as_tuple(use_awaitable));
     }
 
     /**
@@ -285,38 +309,35 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read_some( const bT&& buffer) {
-        return mSocket.async_read_some(buffer, as_tuple(use_awaitable));
+        return socket_.async_read_some(buffer, as_tuple(use_awaitable));
     }
 
 private:
     void set_state(connection_state state) {
-        if(mState == state) {
+        if(state_ == state) {
             return;
         }
 
-        mState = state;
-        if(mStateChangeHandler) {
-            mContext.post(
+        state_ = state;
+        if(state_change_handler_) {
+            ctx_.post(
                 bind(
-                    mStateChangeHandler,
-                    mState
+                    state_change_handler_,
+                    state_
                 )
             );
         }
     }
 
-private:
-    constexpr static uint32_t defaultTimeout = 10000;
-    
-    boost::asio::io_context& mContext;
-    tcp::socket mSocket;
-    asio::steady_timer mTimer;
-    tcp::endpoint mEndpoint;
-    std::atomic<uint32_t> mTimeout;
-    std::string mHost;
-    uint16_t mPort;
-    connection_state mState;
-    connection_state_change_handler mStateChangeHandler;
+private:    
+    boost::asio::io_context& ctx_;
+    tcp::socket socket_;
+    detail::timer timer_;
+    tcp::endpoint endpoint_;
+    std::string host_;
+    uint16_t port_;
+    connection_state state_;
+    connection_state_change_handler state_change_handler_;
 };
 
 }
