@@ -10,7 +10,7 @@ include(conan.cmake)
 
 # integrate conan build process
 if(NOT EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
-    conan_cmake_run(CONANFILE conanfile.txt
+    conan_cmake_run(CONANFILE conanfile.py
                     BASIC_SETUP CMAKE_TARGETS
                     BUILD missing)
 
@@ -63,6 +63,7 @@ endif()
 set( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}" )
 
 # create and configure the test targets
+set(BUILD_TESTING ON)
 message("-- Testing is ${BUILD_TESTING}")
 if(BUILD_TESTING)
 	enable_testing()
