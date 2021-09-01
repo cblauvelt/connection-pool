@@ -108,7 +108,7 @@ awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
     std::tie(error, bytes) = co_await connection.read(boost::asio::buffer(buf));
     connection.expires_never();
     EXPECT_TRUE(error);
-    EXPECT_EQ(error, boost::asio::error::timed_out);
+    EXPECT_EQ(error.error_code(), (int)boost::asio::error::timed_out);
     EXPECT_EQ(bytes, 0);
 
     error = co_await connection.disconnect();

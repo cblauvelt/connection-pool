@@ -19,8 +19,11 @@
 #include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/as_tuple.hpp>
 
+#include <fmt/core.h>
+
 #include "types.hpp"
 #include "timer.hpp"
+#include "error.hpp"
 
 using boost::asio::awaitable;
 using boost::asio::co_spawn;
@@ -105,11 +108,14 @@ public:
      * of host should be compared to a follow-up call to TcpConnection::host if the change is required and the
      * TcpConnection object not being in a connected state cannot be guaranteed.
      */
-    void set_host(std::string host) {
+    error set_host(std::string host) {
         // Don't change the host if a connection is already established
-        if(!socket_.is_open()) {
-            host_ = host;   
+        if(connected()) {
+            return error("Cannot change host once connected");
         }
+        
+        host_ = host;
+        return no_error;
     }
 
 
@@ -128,11 +134,14 @@ public:
      * of port should be compared to a follow-up call to TcpConnection::port if the change is required and the
      * TcpConnection object not being in a connected state cannot be guaranteed.
      */
-    void set_port(uint16_t port) {
+    error set_port(uint16_t port) {
         // Don't change the port if a connection is already established
-        if(!socket_.is_open()) {
-            port_ = port;   
+        if(connected()) {
+            return error("Cannot change port once connected");
         }
+
+        port_ = port;   
+        return no_error;
     }
 
     /**
@@ -189,53 +198,53 @@ public:
      * @brief Make a non-blocking call to resolve the remote endpoint given by host.
      * @param handler The callback to execute once this function is complete.
      */
-    awaitable<boost::system::error_code> connect() {
+    awaitable<cpool::error> connect() {
         if(host_.empty() || port_ == 0) {
-            co_return boost::asio::error::operation_aborted;
+            co_return cpool::error(boost::asio::error::operation_aborted, fmt::format("Host or port have not been set"));
         }
         
         set_state(connection_state::resolving);
 
         tcp::resolver resolver(socket_.get_executor());
-        auto [error, endpoints] = co_await resolver.async_resolve(
+        auto [err, endpoints] = co_await resolver.async_resolve(
             host_,
             std::to_string(port_),
             as_tuple(use_awaitable));
 
-        if (error) {
-            co_return error;
+        if (err) {
+            co_return cpool::error(err, fmt::format("Could not resolve host {0}; {1}", host_, err.message()));
         }
 
         set_state(connection_state::connecting);
-        std::tie(error, endpoint_) = co_await asio::async_connect(socket_, endpoints, as_tuple(use_awaitable));
-        if(error) {
+        std::tie(err, endpoint_) = co_await asio::async_connect(socket_, endpoints, as_tuple(use_awaitable));
+        if(err) {
             set_state(connection_state::disconnected);
         } else {
             set_state(connection_state::connected);
         }
-        co_return error;
+        co_return cpool::error(err, fmt::format("Could not connect to host {0}; {1}", host_, err.message()));
     }
 
     /**
      * @brief Disconnects the TcpConnection object making it no longer able to interact with the remote endpoint.
      */
-    awaitable<boost::system::error_code> disconnect() {
-        boost::system::error_code error;
+    awaitable<error> disconnect() {
+        boost::system::error_code err;
 
         if(!socket_.is_open()) {
-            co_return boost::asio::error::not_connected;
+            co_return error(boost::asio::error::not_connected, "not connected");
         }
 
         set_state(connection_state::disconnecting);
-        socket_.shutdown(tcp::socket::shutdown_both, error);
-        if(error) {
-            co_return error;
+        socket_.shutdown(tcp::socket::shutdown_both, err);
+        if(err) {
+            co_return err;
         }
         
-        socket_.close(error);
+        socket_.close(err);
         set_state(connection_state::disconnected);
         
-        co_return error;
+        co_return err;
     }
 
     /**
@@ -255,7 +264,8 @@ public:
      */
     template <typename bT>
     awaitable<write_result_t> write(const bT&& buffer) {
-        return asio::async_write(socket_, buffer, as_tuple(use_awaitable));
+        auto [err, bytes_written] =  co_await asio::async_write(socket_, buffer, as_tuple(use_awaitable));
+        co_return std::make_tuple(cpool::error(err), bytes_written);
     }
 
     /**
@@ -266,20 +276,21 @@ public:
     awaitable<read_result_t> read(const bT& buffer) {
         // if no timeout, wait forever
         if(!timer_.pending()) {
-            read_result_t result = co_await asio::async_read(socket_, buffer, as_tuple(use_awaitable));
-            co_return result;
+            auto [err, bytes_read] = co_await asio::async_read(socket_, buffer, as_tuple(use_awaitable));
+            co_return std::make_tuple(error(err), bytes_read);
         }
 
-        std::variant<read_result_t, std::monostate> response = co_await (
+        std::variant<detail::asio_read_result_t, std::monostate> response = co_await (
             asio::async_read(socket_, buffer, as_tuple(use_awaitable)) ||
             timer_.async_wait()
         );
 
         if(std::holds_alternative<std::monostate>(response)) {
-            co_return std::make_tuple<boost::system::error_code, size_t>(boost::asio::error::timed_out, 0);
+            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
         }
 
-        co_return std::get<read_result_t>(response);
+        auto [err, bytes_read] = std::get<read_result_t>(response);
+        co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
@@ -288,8 +299,23 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read(const bT&& buffer) {
-        const bT& tempBuffer = buffer;
-        return read(tempBuffer);
+        // if no timeout, wait forever
+        if(!timer_.pending()) {
+            auto [err, bytes_read] = co_await asio::async_read(socket_, buffer, as_tuple(use_awaitable));
+            co_return std::make_tuple(error(err), bytes_read);
+        }
+
+        std::variant<detail::asio_read_result_t, std::monostate> response = co_await (
+            asio::async_read(socket_, buffer, as_tuple(use_awaitable)) ||
+            timer_.async_wait()
+        );
+
+        if(std::holds_alternative<std::monostate>(response)) {
+            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
+        }
+
+        auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
+        co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
@@ -299,7 +325,8 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read_some( const bT& buffer) {
-        return socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        auto [err, bytes_read] = co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
@@ -309,7 +336,8 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read_some( const bT&& buffer) {
-        return socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        auto [err, bytes_read] = co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        co_return std::make_tuple(error(err), bytes_read);
     }
 
 private:
