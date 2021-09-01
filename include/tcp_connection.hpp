@@ -61,6 +61,25 @@ enum class connection_state : uint8_t {
     disconnecting
 };
 
+bool error_means_disconnected(const boost::system::error_code& ec) {
+    if(
+        ec == asio::error::broken_pipe ||
+        ec == asio::error::connection_aborted ||
+        ec == asio::error::connection_refused ||
+        ec == asio::error::connection_reset ||
+        ec == asio::error::network_down ||
+        ec == asio::error::network_reset ||
+        ec == asio::error::network_unreachable ||
+        ec == asio::error::not_connected ||
+        ec == asio::error::eof
+    )
+    {
+        return true;
+    }
+
+    return false;
+}
+
 
 class tcp_connection {
 
@@ -254,7 +273,26 @@ public:
      */
     template <typename bT>
     awaitable<write_result_t> write(const bT& buffer) {
-        return asio::async_write(socket_, buffer, as_tuple(use_awaitable));
+        // if no timeout, wait forever
+        if(!timer_.pending()) {
+            auto [err, bytes_written] = co_await asio::async_write(socket_, buffer, as_tuple(use_awaitable));
+            co_return std::make_tuple(error(err), bytes_written);
+        }
+
+        std::variant<detail::asio_write_result_t, std::monostate> response = co_await (
+            asio::async_write(socket_, buffer, as_tuple(use_awaitable)) ||
+            timer_.async_wait()
+        );
+
+        if(std::holds_alternative<std::monostate>(response)) {
+            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
+        }
+
+        auto [err, bytes_read] = std::get<detail::asio_write_result_t>(response);
+        if(error_means_disconnected(err)) {
+            set_state(connection_state::disconnected);
+        }
+        co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
@@ -264,12 +302,30 @@ public:
      */
     template <typename bT>
     awaitable<write_result_t> write(const bT&& buffer) {
-        auto [err, bytes_written] =  co_await asio::async_write(socket_, buffer, as_tuple(use_awaitable));
-        co_return std::make_tuple(cpool::error(err), bytes_written);
+        // if no timeout, wait forever
+        if(!timer_.pending()) {
+            auto [err, bytes_written] = co_await asio::async_write(socket_, buffer, as_tuple(use_awaitable));
+            co_return std::make_tuple(error(err), bytes_written);
+        }
+
+        std::variant<detail::asio_write_result_t, std::monostate> response = co_await (
+            asio::async_write(socket_, buffer, as_tuple(use_awaitable)) ||
+            timer_.async_wait()
+        );
+
+        if(std::holds_alternative<std::monostate>(response)) {
+            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
+        }
+
+        auto [err, bytes_read] = std::get<detail::asio_write_result_t>(response);
+        if(error_means_disconnected(err)) {
+            set_state(connection_state::disconnected);
+        }
+        co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
-     * @brief Executes a non-blocking read of the socket. This call will block until a number of bytes equal to buffer.size() has been read.
+     * @brief Executes a blocking read of the socket. This call will block until a number of bytes equal to buffer.size() has been read.
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
@@ -289,12 +345,15 @@ public:
             co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
         }
 
-        auto [err, bytes_read] = std::get<read_result_t>(response);
+        auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
+        if(error_means_disconnected(err)) {
+            set_state(connection_state::disconnected);
+        }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
-     * @brief Executes a non-blocking read of the socket. This call will block until a number of bytes equal to buffer.size() has been read.
+     * @brief Executes a blocking read of the socket. This call will block until a number of bytes equal to buffer.size() has been read.
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
@@ -315,6 +374,9 @@ public:
         }
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
+        if(error_means_disconnected(err)) {
+            set_state(connection_state::disconnected);
+        }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
@@ -326,6 +388,9 @@ public:
     template <typename bT>
     awaitable<read_result_t> read_some( const bT& buffer) {
         auto [err, bytes_read] = co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        if(error_means_disconnected(err)) {
+            set_state(connection_state::disconnected);
+        }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
@@ -337,6 +402,9 @@ public:
     template <typename bT>
     awaitable<read_result_t> read_some( const bT&& buffer) {
         auto [err, bytes_read] = co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        if(error_means_disconnected(err)) {
+            set_state(connection_state::disconnected);
+        }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
