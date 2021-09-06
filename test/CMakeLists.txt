@@ -8,6 +8,14 @@ target_include_directories(${ERROR_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(${ERROR_TEST} ${CONAN_LIBS})
 add_test(NAME ${ERROR_TEST} COMMAND $<TARGET_FILE:${ERROR_TEST}>)
 
+set(BACK_OFF_TEST "back_off_test")
+add_executable(${BACK_OFF_TEST}
+        "src/back_off_test.cpp"
+)
+target_include_directories(${BACK_OFF_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(${BACK_OFF_TEST} ${CONAN_LIBS})
+add_test(NAME ${BACK_OFF_TEST} COMMAND $<TARGET_FILE:${BACK_OFF_TEST}>)
+
 set(TIMER_TEST "timer_test")
 add_executable(${TIMER_TEST}
         "src/timer_test.cpp"
@@ -25,3 +33,13 @@ add_executable(${CLIENT_TEST}
 target_include_directories(${CLIENT_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(${CLIENT_TEST} ${CONAN_LIBS})
 add_test(NAME ${CLIENT_TEST} COMMAND $<TARGET_FILE:${CLIENT_TEST}>)
+
+set(CONNECTION_POOL_TEST "connection_pool_test")
+add_executable(${CONNECTION_POOL_TEST}
+        "src/connection_pool_test.cpp"
+        "src/test_connection.cpp"
+        "src/echo_server.cpp"
+)
+target_include_directories(${CONNECTION_POOL_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(${CONNECTION_POOL_TEST} ${CONAN_LIBS})
+add_test(NAME ${CONNECTION_POOL_TEST} COMMAND $<TARGET_FILE:${CONNECTION_POOL_TEST}>)

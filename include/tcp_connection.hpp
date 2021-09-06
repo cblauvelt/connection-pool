@@ -110,6 +110,15 @@ public:
     tcp_connection& operator=(const tcp_connection&) = delete;
 
     /**
+     * @brief Returns the executor context for the connection
+     * 
+     * @returns The executor context for the connection
+     */
+    asio::io_context& get_context() {
+        return ctx_;
+    }
+
+    /**
      * @returns A reference to the internal socket object.
      * 
      * @secton WARNING: Operations performed on this object that are not performed through the TcpConnection interface
@@ -168,6 +177,15 @@ public:
      */
     uint16_t port() const {
         return port_;
+    }
+
+    /**
+     * @brief Returns the current state of the connection
+     * 
+     * @return connection_state An enum representing the current state of the connection
+     */
+    connection_state state() const {
+        return state_;
     }
 
     /**
