@@ -30,31 +30,30 @@ std::string bytes_to_string(const T& buffer) {
     return retVal.str();
 }
 
-void on_connection_state_change(const cpool::connection_state state) {
+void on_connection_state_change(const cpool::client_connection_state state) {
     switch (state) {
-    case cpool::connection_state::resolving:
+    case cpool::client_connection_state::resolving:
         EXPECT_TRUE(true);
         break;
     
-    case cpool::connection_state::connecting:
+    case cpool::client_connection_state::connecting:
         EXPECT_TRUE(true);
         break;
 
-    case cpool::connection_state::connected:
+    case cpool::client_connection_state::connected:
         EXPECT_TRUE(true);
         break;
 
-    case cpool::connection_state::disconnecting:
+    case cpool::client_connection_state::disconnecting:
         EXPECT_TRUE(true);
         break;
 
-    case cpool::connection_state::disconnected:
+    case cpool::client_connection_state::disconnected:
         EXPECT_TRUE(true);
         break;
 
     default:
         EXPECT_TRUE(false);
-        break;
     }
 }
 

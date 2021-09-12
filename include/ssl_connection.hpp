@@ -10,6 +10,7 @@
 #include <tuple>
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -21,14 +22,16 @@
 
 #include <fmt/core.h>
 
-#include "client_state.hpp"
 #include "types.hpp"
 #include "timer.hpp"
 #include "error.hpp"
+#include "client_state.hpp"
 
 namespace cpool {
 
 namespace asio = boost::asio;
+namespace ssl = boost::asio::ssl;
+
 using boost::asio::awaitable;
 using boost::asio::co_spawn;
 using boost::asio::detached;
@@ -38,34 +41,44 @@ using namespace boost::asio::experimental::awaitable_operators;
 using boost::asio::experimental::as_tuple;
 using milliseconds = std::chrono::milliseconds;
 using boost::asio::ip::tcp;
+using ssl_socket = ssl::stream<tcp::socket>;
 
-class tcp_connection {
+struct ssl_options {
+    /// Adds the Server Name Indication extension; https://en.wikipedia.org/wiki/Server_Name_Indication
+    bool sni = false;
+};
+
+constexpr ssl_options default_ssl_options{false};
+
+class ssl_connection {
 
 public:
-    tcp_connection() = delete;
+    ssl_connection() = delete;
 
-    tcp_connection(boost::asio::io_context& io_context) :
+    ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx) :
         ctx_(io_context),
-        socket_(io_context),
+        stream_(io_context, ssl_ctx),
         timer_(io_context),
         host_(),
         port_(0),
+        ssl_options_(default_ssl_options),
         state_(client_connection_state::disconnected),
         state_change_handler_()
     {}
 
-    tcp_connection(boost::asio::io_context& io_context, std::string host, uint16_t port) :
+    ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx, std::string host, uint16_t port, ssl_options options=default_ssl_options) :
         ctx_(io_context),
-        socket_(io_context),
+        stream_(io_context, ssl_ctx),
         timer_(io_context),
         host_(host),
         port_(port),
+        ssl_options_(options),
         state_(client_connection_state::disconnected),
         state_change_handler_()
     {}
 
-    tcp_connection(const tcp_connection&) = delete;
-    tcp_connection& operator=(const tcp_connection&) = delete;
+    ssl_connection(const ssl_connection&) = delete;
+    ssl_connection& operator=(const ssl_connection&) = delete;
 
     /**
      * @brief Returns the executor context for the connection
@@ -82,8 +95,8 @@ public:
      * @secton WARNING: Operations performed on this object that are not performed through the TcpConnection interface
      * may prevent the interface from recognizing changes in state.
      */
-    tcp::socket& socket() {
-        return socket_;
+    ssl_socket& stream() {
+        return stream_;
     }
 
     /**
@@ -169,7 +182,7 @@ public:
      * @returns Whether the socket is connected.
      */
     bool connected() const {
-        return (state_ == client_connection_state::connected && socket_.is_open());
+        return (state_ == client_connection_state::connected && stream_.lowest_layer().is_open());
     }
 
     /**
@@ -185,7 +198,7 @@ public:
      */
     std::tuple<size_t, boost::system::error_code> bytes_available() const {
         boost::system::error_code error;
-        size_t size = socket_.available(error);
+        size_t size = stream_.lowest_layer().available(error);
         return std::make_tuple(size, error);
     }
 
@@ -200,7 +213,7 @@ public:
         
         set_state(client_connection_state::resolving);
 
-        tcp::resolver resolver(socket_.get_executor());
+        tcp::resolver resolver(stream_.get_executor());
         auto [err, endpoints] = co_await resolver.async_resolve(
             host_,
             std::to_string(port_),
@@ -211,34 +224,48 @@ public:
         }
 
         set_state(client_connection_state::connecting);
-        std::tie(err, endpoint_) = co_await asio::async_connect(socket_, endpoints, as_tuple(use_awaitable));
+
+        // Set SNI Hostname (many hosts need this to handshake successfully)
+        if(ssl_options_.sni && ! SSL_set_tlsext_host_name(stream_.native_handle(), host_.c_str()))
+        {
+            boost::system::error_code err = {static_cast<int>(::ERR_get_error()), asio::error::get_ssl_category()};
+            co_return err;
+        }
+
+        std::tie(err, endpoint_) = co_await asio::async_connect(stream_.lowest_layer(), endpoints, as_tuple(use_awaitable));
         if(err) {
             set_state(client_connection_state::disconnected);
             co_return cpool::error(err, fmt::format("Could not connect to host {0}; {1}", host_, err.message()));
-        } else {
-            set_state(client_connection_state::connected);
         }
 
+        stream_.lowest_layer().set_option(tcp::no_delay(true));
+
+        // complete handshake
+        co_await stream_.async_handshake(ssl::stream_base::client, use_awaitable);
+
+        set_state(client_connection_state::connected);
+        
         co_return cpool::no_error;
     }
 
     /**
-     * @brief Disconnects the TcpConnection object making it no longer able to interact with the remote endpoint.
+     * @brief Disconnects the ssl connection object making it no longer able to interact with the remote endpoint.
      */
     awaitable<error> disconnect() {
         boost::system::error_code err;
 
-        if(!socket_.is_open()) {
+        if(!stream_.lowest_layer().is_open()) {
             co_return error(boost::asio::error::not_connected, "not connected");
         }
 
         set_state(client_connection_state::disconnecting);
-        socket_.shutdown(tcp::socket::shutdown_both, err);
-        if(err) {
-            co_return err;
+        stream_.shutdown(err);
+        if(err == asio::error::eof) {
+            // Rationale:
+            // http://stackoverflow.com/questions/25587403/boost-asio-ssl-async-shutdown-always-finishes-with-an-error
+            err = {};
         }
         
-        socket_.close(err);
         set_state(client_connection_state::disconnected);
         
         co_return err;
@@ -253,12 +280,12 @@ public:
     awaitable<write_result_t> write(const bT& buffer) {
         // if no timeout, wait forever
         if(!timer_.pending()) {
-            auto [err, bytes_written] = co_await asio::async_write(socket_, buffer, as_tuple(use_awaitable));
+            auto [err, bytes_written] = co_await asio::async_write(stream_, buffer, as_tuple(use_awaitable));
             co_return std::make_tuple(error(err), bytes_written);
         }
 
         std::variant<detail::asio_write_result_t, std::monostate> response = co_await (
-            asio::async_write(socket_, buffer, as_tuple(use_awaitable)) ||
+            asio::async_write(stream_, buffer, as_tuple(use_awaitable)) ||
             timer_.async_wait()
         );
 
@@ -267,91 +294,6 @@ public:
         }
 
         auto [err, bytes_read] = std::get<detail::asio_write_result_t>(response);
-        if(error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
-        }
-        co_return std::make_tuple(error(err), bytes_read);
-    }
-
-    /**
-     * @brief Executes a write to the socket.
-     * @param buffer The buffer that contains the data to be written.
-     * @returns write_result_t A tuple representing the error during writing and the number of bytes written.
-     */
-    template <typename bT>
-    awaitable<write_result_t> write(const bT&& buffer) {
-        // if no timeout, wait forever
-        if(!timer_.pending()) {
-            auto [err, bytes_written] = co_await asio::async_write(socket_, buffer, as_tuple(use_awaitable));
-            co_return std::make_tuple(error(err), bytes_written);
-        }
-
-        std::variant<detail::asio_write_result_t, std::monostate> response = co_await (
-            asio::async_write(socket_, buffer, as_tuple(use_awaitable)) ||
-            timer_.async_wait()
-        );
-
-        if(std::holds_alternative<std::monostate>(response)) {
-            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
-        }
-
-        auto [err, bytes_read] = std::get<detail::asio_write_result_t>(response);
-        if(error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
-        }
-        co_return std::make_tuple(error(err), bytes_read);
-    }
-
-    /**
-     * @brief Executes a blocking read of the socket. This call will block until a number of bytes equal to buffer.size() has been read.
-     * @param buffer The buffer that will contain the result of the read.
-     */
-    template <typename bT>
-    awaitable<read_result_t> read(const bT& buffer) {
-        // if no timeout, wait forever
-        if(!timer_.pending()) {
-            auto [err, bytes_read] = co_await asio::async_read(socket_, buffer, as_tuple(use_awaitable));
-            co_return std::make_tuple(error(err), bytes_read);
-        }
-
-        std::variant<detail::asio_read_result_t, std::monostate> response = co_await (
-            asio::async_read(socket_, buffer, as_tuple(use_awaitable)) ||
-            timer_.async_wait()
-        );
-
-        if(std::holds_alternative<std::monostate>(response)) {
-            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
-        }
-
-        auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
-        if(error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
-        }
-        co_return std::make_tuple(error(err), bytes_read);
-    }
-
-    /**
-     * @brief Executes a blocking read of the socket. This call will block until a number of bytes equal to buffer.size() has been read.
-     * @param buffer The buffer that will contain the result of the read.
-     */
-    template <typename bT>
-    awaitable<read_result_t> read(const bT&& buffer) {
-        // if no timeout, wait forever
-        if(!timer_.pending()) {
-            auto [err, bytes_read] = co_await asio::async_read(socket_, buffer, as_tuple(use_awaitable));
-            co_return std::make_tuple(error(err), bytes_read);
-        }
-
-        std::variant<detail::asio_read_result_t, std::monostate> response = co_await (
-            asio::async_read(socket_, buffer, as_tuple(use_awaitable)) ||
-            timer_.async_wait()
-        );
-
-        if(std::holds_alternative<std::monostate>(response)) {
-            co_return std::make_tuple(error((int)boost::asio::error::timed_out, "timed out"), 0);
-        }
-
-        auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
         if(error_means_client_disconnected(err)) {
             set_state(client_connection_state::disconnected);
         }
@@ -365,7 +307,7 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read_some( const bT& buffer) {
-        auto [err, bytes_read] = co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        auto [err, bytes_read] = co_await stream_.async_read_some(buffer, as_tuple(use_awaitable));
         if(error_means_client_disconnected(err)) {
             set_state(client_connection_state::disconnected);
         }
@@ -379,7 +321,7 @@ public:
      */
     template <typename bT>
     awaitable<read_result_t> read_some( const bT&& buffer) {
-        auto [err, bytes_read] = co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
+        auto [err, bytes_read] = co_await stream_.async_read_some(buffer, as_tuple(use_awaitable));
         if(error_means_client_disconnected(err)) {
             set_state(client_connection_state::disconnected);
         }
@@ -404,12 +346,13 @@ private:
     }
 
 private:    
-    boost::asio::io_context& ctx_;
-    tcp::socket socket_;
+    asio::io_context& ctx_;
+    ssl_socket stream_;
     detail::timer timer_;
     tcp::endpoint endpoint_;
     std::string host_;
     uint16_t port_;
+    ssl_options ssl_options_;
     client_connection_state state_;
     connection_state_change_handler state_change_handler_;
 };

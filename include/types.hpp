@@ -12,7 +12,7 @@ namespace cpool
     
     using tcp = boost::asio::ip::tcp;
 
-    enum class connection_state : uint8_t;
+    enum class client_connection_state : uint8_t;
 
     using asio_error = boost::system::error_code;
 
@@ -34,7 +34,7 @@ namespace cpool
      * @brief The function object that is called whenever the status of the TcpAcceptor object has changed state.
      * @param state The new state of the object as defined by the enum sio::network::ConnectionState.
      */
-    using connection_state_change_handler = std::function<void(const connection_state state)>;
+    using connection_state_change_handler = std::function<void(const client_connection_state state)>;
 
     namespace detail {
         /**

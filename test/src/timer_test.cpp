@@ -19,11 +19,9 @@ using boost::asio::awaitable;
 using boost::asio::co_spawn;
 using boost::asio::detached;
 using boost::asio::use_awaitable;
-using boost::asio::use_awaitable_t;
 using boost::asio::ip::tcp;
 using namespace boost::asio::experimental::awaitable_operators;
 using boost::asio::experimental::as_tuple;
-using boost::asio::experimental::as_tuple_t;
 
 namespace {
 

@@ -34,6 +34,16 @@ target_include_directories(${CLIENT_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(${CLIENT_TEST} ${CONAN_LIBS})
 add_test(NAME ${CLIENT_TEST} COMMAND $<TARGET_FILE:${CLIENT_TEST}>)
 
+set(SSL_CLIENT_TEST "ssl_client_test")
+add_executable(${SSL_CLIENT_TEST}
+        "src/ssl_client_test.cpp"
+        "src/ssl_echo_server.cpp"
+        "src/slow_echo_server.cpp"
+)
+target_include_directories(${SSL_CLIENT_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(${SSL_CLIENT_TEST} ${CONAN_LIBS})
+add_test(NAME ${SSL_CLIENT_TEST} COMMAND $<TARGET_FILE:${SSL_CLIENT_TEST}>)
+
 set(CONNECTION_POOL_TEST "connection_pool_test")
 add_executable(${CONNECTION_POOL_TEST}
         "src/connection_pool_test.cpp"
