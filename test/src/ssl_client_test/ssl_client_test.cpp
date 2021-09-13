@@ -7,9 +7,9 @@
 
 #include "ssl_connection.hpp"
 
-#include "root_certificates.hpp"
+#include "core/root_certificates.hpp"
 
-#include "ssl_echo_server.hpp"
+#include "core/ssl_echo_server.hpp"
 // #include "slow_echo_server.hpp"
 
 namespace {

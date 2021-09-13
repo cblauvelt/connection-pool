@@ -7,8 +7,8 @@
 
 #include "tcp_connection.hpp"
 
-#include "echo_server.hpp"
-#include "slow_echo_server.hpp"
+#include "core/echo_server.hpp"
+#include "core/slow_echo_server.hpp"
 
 using std::cout;
 using std::endl;

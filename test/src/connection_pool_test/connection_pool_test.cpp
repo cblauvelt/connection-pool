@@ -5,9 +5,9 @@
 #include "gtest/gtest.h"
 
 #include "connection_pool.hpp"
-#include "test_connection.hpp"
 #include "tcp_connection.hpp"
-#include "echo_server.hpp"
+#include "core/test_connection.hpp"
+#include "core/echo_server.hpp"
 
 namespace {
 
