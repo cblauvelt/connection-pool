@@ -67,14 +67,14 @@ awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
     EXPECT_FALSE(error);
 
     
-    error = co_await connection.disconnect();
-   
-    EXPECT_FALSE(error);
-    if(error) {
-        cout << "Error disconnecting: " << error << endl;
-    }
+    co_await connection.disconnect();
 
     if(last_task) {
+        // Wait a few ms for the other coroutines to finish
+        // This would be better handled using a barrier but that's not in gcc10
+        boost::asio::steady_timer timer(ctx);
+        timer.expires_from_now(250ms);
+        co_await timer.async_wait(use_awaitable);
         ctx.stop();
     }
 }
@@ -96,10 +96,10 @@ TEST(SSL_Client, EchoTest) {
     // Verify the remote server's certificate
     client_ssl_ctx.set_verify_mode(ssl::verify_peer);
 
-    // cout << "Running " << num_tests << " tests" << endl;
-    // for(int i=0; i < num_tests-1; i++) {
-    //     co_spawn(ctx, client_test(std::ref(ctx), std::ref(ssl_ctx)), detached);
-    // }
+    cout << "Running " << num_tests << " tests" << endl;
+    for(int i=0; i < num_tests-1; i++) {
+        co_spawn(ctx, client_test(std::ref(ctx), std::ref(client_ssl_ctx)), detached);
+    }
     co_spawn(ctx, client_test(std::ref(ctx), std::ref(client_ssl_ctx), true), detached);
 
     ctx.run();

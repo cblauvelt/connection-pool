@@ -18,14 +18,6 @@ awaitable<void> echo(tcp::socket socket) {
         err = co_await echo_once(socket);
         if(err) { break; }
     }
-
-    std::cout << "server error: " << err << std::endl;
-    if(socket.is_open()) {
-        socket.shutdown(tcp::socket::shutdown_both, err);
-        if(err) { co_return; }
-        
-        socket.close(err);
-    }
     
     co_return;
 }
