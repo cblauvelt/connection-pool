@@ -5,9 +5,9 @@
 #include "gtest/gtest.h"
 
 #include "connection_pool.hpp"
-#include "tcp_connection.hpp"
-#include "core/test_connection.hpp"
 #include "core/echo_server.hpp"
+#include "core/test_connection.hpp"
+#include "tcp_connection.hpp"
 
 namespace {
 
@@ -15,14 +15,12 @@ using namespace std::chrono;
 using namespace std::chrono_literals;
 using namespace cpool;
 
-
 constexpr uint16_t port_number = 55557;
 constexpr int num_connections = 4;
 
-template<typename T>
-std::string bytes_to_string(const T& buffer) {
+template <typename T> std::string bytes_to_string(const T& buffer) {
     std::stringstream retVal;
-    for(auto byte : buffer) {
+    for (auto byte : buffer) {
         retVal << byte;
     }
 
@@ -34,7 +32,8 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
         return std::make_unique<test_connection>(ctx);
     };
 
-    auto pool = connection_pool<test_connection>(connection_creator, num_connections);
+    auto pool =
+        connection_pool<test_connection>(connection_creator, num_connections);
     auto connection = co_await pool.get_connection();
 
     EXPECT_NE(connection, nullptr);
@@ -73,8 +72,9 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
 
     // expect exception on releasing unmanaged connection
     auto unmanaged_connection = std::make_unique<test_connection>(ctx);
-    EXPECT_THROW(pool.release_connection(unmanaged_connection.get()), std::runtime_error);
-        
+    EXPECT_THROW(pool.release_connection(unmanaged_connection.get()),
+                 std::runtime_error);
+
     ctx.stop();
 
     co_return;
@@ -85,9 +85,10 @@ awaitable<void> too_many_connections_test(asio::io_context& ctx) {
         return std::make_unique<test_connection>(ctx);
     };
 
-    auto pool = connection_pool<test_connection>(connection_creator, num_connections);
+    auto pool =
+        connection_pool<test_connection>(connection_creator, num_connections);
     std::array<test_connection*, num_connections> connections;
-    for(int i=0; i < num_connections; i++) {
+    for (int i = 0; i < num_connections; i++) {
         connections[i] = co_await pool.get_connection();
     }
     EXPECT_EQ(pool.size_idle(), 0);
@@ -105,7 +106,8 @@ awaitable<void> echo_connection_test(asio::io_context& ctx) {
         return std::make_unique<tcp_connection>(ctx, "localhost", port_number);
     };
 
-    auto pool = connection_pool<tcp_connection>(connection_creator, num_connections);
+    auto pool =
+        connection_pool<tcp_connection>(connection_creator, num_connections);
     auto connection = co_await pool.get_connection();
 
     EXPECT_NE(connection, nullptr);
@@ -114,16 +116,18 @@ awaitable<void> echo_connection_test(asio::io_context& ctx) {
     EXPECT_EQ(pool.size(), 1);
 
     std::string message = "Test message";
-    
-    auto [err, bytes] = co_await connection->write(boost::asio::buffer(message));
+
+    auto [err, bytes] =
+        co_await connection->write(boost::asio::buffer(message));
     EXPECT_FALSE(err);
     EXPECT_EQ(bytes, message.length());
 
     std::vector<std::uint8_t> buf(256);
-    std::tie(err, bytes) = co_await connection->read_some(boost::asio::buffer(buf));
+    std::tie(err, bytes) =
+        co_await connection->read_some(boost::asio::buffer(buf));
     EXPECT_FALSE(err);
     EXPECT_EQ(bytes, message.length());
-    
+
     auto bufferMessage = bytes_to_string(buf | std::views::take(bytes));
     EXPECT_EQ(bufferMessage, message);
 
@@ -133,8 +137,7 @@ awaitable<void> echo_connection_test(asio::io_context& ctx) {
     ctx.stop();
 }
 
-TEST(ConnectionPool, MockTest)
-{
+TEST(ConnectionPool, MockTest) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, mock_connection_test(std::ref(ctx)), detached);
@@ -142,8 +145,7 @@ TEST(ConnectionPool, MockTest)
     ctx.run();
 }
 
-TEST(ConnectionPool, TooManyConnections)
-{
+TEST(ConnectionPool, TooManyConnections) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, too_many_connections_test(std::ref(ctx)), detached);
@@ -151,13 +153,11 @@ TEST(ConnectionPool, TooManyConnections)
     ctx.run();
 }
 
-TEST(ConnectionPool, EchoTest)
-{
+TEST(ConnectionPool, EchoTest) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, echo_listener(port_number), detached);
 
-    
     co_spawn(ctx, echo_connection_test(std::ref(ctx)), detached);
 
     ctx.run();

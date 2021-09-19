@@ -6,12 +6,12 @@
 #include <boost/asio.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
 
 #include "timer.hpp"
 
@@ -43,7 +43,7 @@ awaitable<void> basic_timer_test(asio::io_context& ctx) {
 
     auto time_stop = std::chrono::steady_clock::now();
     EXPECT_GT(time_stop, time_start);
-    EXPECT_GE((time_stop-time_start), delay);
+    EXPECT_GE((time_stop - time_start), delay);
 
     // test expires_at semantics
     time_start = std::chrono::steady_clock::now();
@@ -55,7 +55,7 @@ awaitable<void> basic_timer_test(asio::io_context& ctx) {
 
     time_stop = std::chrono::steady_clock::now();
     EXPECT_GT(time_stop, time_start);
-    EXPECT_GE((time_stop-time_start), delay);
+    EXPECT_GE((time_stop - time_start), delay);
     ctx.stop();
 }
 
@@ -94,22 +94,20 @@ awaitable<void> nothrow_timer_test(asio::io_context& ctx) {
             co_await timer2.async_wait();
             timer.expires_never();
         },
-        detached
-    );
+        detached);
 
     co_await timer.async_wait();
 
     auto time_stop = std::chrono::steady_clock::now();
     EXPECT_GT(time_stop, time_start);
-    EXPECT_GE((time_stop-time_start), delay);
+    EXPECT_GE((time_stop - time_start), delay);
 
     ctx.stop();
 
     co_return;
 }
 
-TEST(Timer, BasicTimerTest)
-{
+TEST(Timer, BasicTimerTest) {
     asio::io_context io_context;
 
     co_spawn(io_context, basic_timer_test(std::ref(io_context)), detached);
@@ -117,8 +115,7 @@ TEST(Timer, BasicTimerTest)
     io_context.run();
 }
 
-TEST(Errors, CancelTest)
-{
+TEST(Errors, CancelTest) {
     asio::io_context io_context;
 
     co_spawn(io_context, cancel_timer_test(std::ref(io_context)), detached);
@@ -126,8 +123,7 @@ TEST(Errors, CancelTest)
     io_context.run();
 }
 
-TEST(Errors, NoThrowTest)
-{
+TEST(Errors, NoThrowTest) {
     asio::io_context io_context;
 
     co_spawn(io_context, nothrow_timer_test(std::ref(io_context)), detached);

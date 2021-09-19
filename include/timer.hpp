@@ -1,11 +1,10 @@
 #pragma once
 
 #include <boost/asio.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 
-namespace cpool
-{
+namespace cpool {
 
 namespace detail {
 
@@ -18,10 +17,8 @@ using boost::asio::experimental::as_tuple;
 
 class timer {
 
-public:
-    timer(asio::io_context& context) :
-    timer_(context)
-    {}
+  public:
+    timer(asio::io_context& context) : timer_(context) {}
 
     void expires_at(time_point tp) {
         timer_.expires_at(tp);
@@ -47,15 +44,13 @@ public:
         pending_ = false;
     }
 
-    bool pending() const {
-        return pending_;
-    }
+    bool pending() const { return pending_; }
 
     bool expired() const {
         return (pending_ && timer_.expiry() > std::chrono::steady_clock::now());
     }
 
-private:
+  private:
     asio::steady_timer timer_;
     bool pending_;
 };

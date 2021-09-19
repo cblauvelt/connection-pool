@@ -4,21 +4,25 @@
 
 awaitable<boost::system::error_code> echo_once(tcp::socket& socket) {
     std::array<char, 128> data;
-    auto [ec, bytesRead] = co_await socket.async_read_some(boost::asio::buffer(data), as_tuple(use_awaitable));
-    if(ec) {
+    auto [ec, bytesRead] = co_await socket.async_read_some(
+        boost::asio::buffer(data), as_tuple(use_awaitable));
+    if (ec) {
         co_return ec;
     }
 
-    co_await async_write(socket, boost::asio::buffer(data, bytesRead), use_awaitable);
+    co_await async_write(socket, boost::asio::buffer(data, bytesRead),
+                         use_awaitable);
 }
 
 awaitable<void> echo(tcp::socket socket) {
     boost::system::error_code err;
     for (;;) {
         err = co_await echo_once(socket);
-        if(err) { break; }
+        if (err) {
+            break;
+        }
     }
-    
+
     co_return;
 }
 

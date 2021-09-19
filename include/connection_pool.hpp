@@ -1,27 +1,27 @@
 #pragma once
 
-#include <memory>
-#include <unordered_map>
-#include <mutex>
 #include <chrono>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 // #include <iostream>
 
 #include <boost/asio.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
 
 #include <fmt/core.h>
 
-#include "types.hpp"
-#include "timer.hpp"
-#include "error.hpp"
 #include "back_off.hpp"
+#include "error.hpp"
+#include "timer.hpp"
+#include "types.hpp"
 
 using boost::asio::awaitable;
 using boost::asio::co_spawn;
@@ -38,16 +38,14 @@ namespace cpool {
 // using std::cout;
 // using std::endl;
 
-template <class T>
-class connection_pool {
+template <class T> class connection_pool {
 
-public:
-    connection_pool(std::function<std::unique_ptr<T>(void)> constructor_func, size_t max_connections=default_max_connections) :
-        idle_connections_(),
-        busy_connections_(),
-        constructor_func_(constructor_func),
-        max_connections_(max_connections)
-    {}
+  public:
+    connection_pool(std::function<std::unique_ptr<T>(void)> constructor_func,
+                    size_t max_connections = default_max_connections)
+        : idle_connections_(), busy_connections_(),
+          constructor_func_(constructor_func),
+          max_connections_(max_connections) {}
 
     awaitable<T*> get_connection() {
         T* connection = nullptr;
@@ -56,7 +54,7 @@ public:
             std::lock_guard lock{mtx_};
 
             // if there's an idle connection ready, return the connection
-            if(!idle_connections_.empty()) {
+            if (!idle_connections_.empty()) {
                 // cout << "Idle connection available" << endl;
                 auto first_connection = idle_connections_.begin();
                 connection = first_connection->first;
@@ -66,17 +64,19 @@ public:
             }
 
             // we couldnt get a connection from the idle pool
-            if(connection == nullptr && busy_connections_.size() < max_connections_) {
-                // cout << "Idle connection not available. Creating new connection" << endl;
+            if (connection == nullptr &&
+                busy_connections_.size() < max_connections_) {
+                // cout << "Idle connection not available. Creating new
+                // connection" << endl;
                 std::unique_ptr<T> uniq_connection = constructor_func_();
                 connection = uniq_connection.get();
-                busy_connections_.emplace(connection, std::move(uniq_connection));
+                busy_connections_.emplace(connection,
+                                          std::move(uniq_connection));
             }
-
         }
 
         // attempt connection if not connected
-        if(connection != nullptr) {
+        if (connection != nullptr) {
             auto err = co_await connection->connect();
             boost::asio::steady_timer timer(connection->get_context());
 
@@ -86,43 +86,47 @@ public:
             int attempts = 1;
             while (!connection->connected()) {
                 auto delay = timer_delay(++attempts);
-                // cout << "connection failed; waiting " << delay.count() << " milliseconds" << endl;
-                
+                // cout << "connection failed; waiting " << delay.count() << "
+                // milliseconds" << endl;
+
                 timer.expires_from_now();
                 co_await timer.async_wait(use_awaitable);
 
                 // cout << "connection attempt " << attempts << endl;
                 co_await connection->connect();
             }
-            
         }
 
-        co_return connection;        
+        co_return connection;
     }
 
     void release_connection(T* connection) {
-        if(connection == nullptr) { return; }
+        if (connection == nullptr) {
+            return;
+        }
 
         // find on busy stack
         auto it = busy_connections_.find(connection);
-        if(it == busy_connections_.end()) {
+        if (it == busy_connections_.end()) {
             // This is a problem, either we have a bug or the
             // user tried to release the connection twice
-            if(idle_connections_.contains(connection)) {
+            if (idle_connections_.contains(connection)) {
                 // it's all good, the user probably released twice
                 return;
             }
 
-            // We're about to have a memory leak so throw an error to let the user know
-            throw std::runtime_error("connection could not be released, memory leak possible");
+            // We're about to have a memory leak so throw an error to let the
+            // user know
+            throw std::runtime_error(
+                "connection could not be released, memory leak possible");
         }
 
         // test if connected
         auto node = busy_connections_.extract(it);
-        if(connection->connected()) {
+        if (connection->connected()) {
             idle_connections_.insert(std::move(node));
         }
-        
+
         // node goes out of scope and the unique_ptr dies with it
         return;
     }
@@ -142,7 +146,7 @@ public:
         return busy_connections_.size();
     }
 
-private:
+  private:
     static const int default_max_connections = 16;
 
     mutable std::mutex mtx_;
@@ -153,4 +157,4 @@ private:
     size_t max_connections_;
 };
 
-}
+} // namespace cpool

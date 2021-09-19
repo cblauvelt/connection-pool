@@ -5,8 +5,7 @@
 
 namespace {
 
-TEST(Errors, DefaultError)
-{
+TEST(Errors, DefaultError) {
     std::string errorMessage = "Test Message";
     cpool::error error;
     cpool::error errorWithMessage(errorMessage);
@@ -17,18 +16,14 @@ TEST(Errors, DefaultError)
 
     EXPECT_EQ(errorWithMessage.message(), errorWithMessage.what());
     EXPECT_EQ(errorWithMessage.message(), errorMessage);
-    EXPECT_EQ(errorWithMessage.error_code(), (int)cpool::generic_error_code::generic_error);
+    EXPECT_EQ(errorWithMessage.error_code(),
+              (int)cpool::generic_error_code::generic_error);
     EXPECT_TRUE(errorWithMessage);
     EXPECT_FALSE(!errorWithMessage);
 }
 
-TEST(Errors, CustomError)
-{
-    enum class CustomErrorCode {
-        NoError = 0,
-        BadError,
-        ThisIsUnneccesary
-    };
+TEST(Errors, CustomError) {
+    enum class CustomErrorCode { NoError = 0, BadError, ThisIsUnneccesary };
     std::string errorMessage = "Test Message";
     cpool::error error;
     cpool::error errorWithMessage((int)CustomErrorCode::BadError, errorMessage);
