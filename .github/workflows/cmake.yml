@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: conanio/gcc10:latest
+    container: cblauvelt/cpp-builder-gcc10:latest
     steps:
     - uses: actions/checkout@v2
     - name: configure
@@ -17,4 +17,4 @@ jobs:
     - name: build
       run: cmake --build .
     - name: test
-      run: cmake --build . --target test
+      run: ctest -C Release -T test --output-on-failure --timeout 10
