@@ -2,13 +2,14 @@
 
 # -*- coding: utf-8 -*-
 
+import re
 from conans import ConanFile, CMake, tools
 from conans.errors import ConanInvalidConfiguration
 from conans.model.version import Version
 
 
 class CPoolConan(ConanFile):
-    name = "connection-pool"
+    name = "cpool"
     url = "https://github.com/cblauvelt/connection-pool"
     homepage = url
     author = "Christopher Blauvelt"
@@ -16,7 +17,7 @@ class CPoolConan(ConanFile):
     license = "MIT"
     topics = ("asio", "network", "coroutines", "common-libraries")
     exports = ["LICENSE"]
-    exports_sources = ["CMakeLists.txt", "CMake/*", "batteries/*"]
+    exports_sources = ["CMakeLists.txt", "conan.cmake", "conanfile.py", "include/*", "test/*"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
     requires = "boost/1.77.0", "openssl/1.1.1l", "fmt/8.0.1"
@@ -34,9 +35,13 @@ class CPoolConan(ConanFile):
            Version(self.settings.compiler.version.value) < "16":
             raise ConanInvalidConfiguration("CPool does not support MSVC < 16")
 
+    def sanitize_version(self, version):
+        return re.sub(r'^v', '', version)
+
+
     def set_version(self):
         git = tools.Git(folder=self.recipe_folder)
-        self.version = "%s_%s" % (git.get_branch(), git.get_revision())
+        self.version = self.sanitize_version(git.get_tag()) if git.get_tag() else "%s_%s" % (git.get_branch(), git.get_revision())
 
     def build(self):
         cmake = CMake(self)

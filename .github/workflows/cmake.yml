@@ -3,6 +3,8 @@ name: C/C++ CI
 on:
   push:
     branches: [ main ]
+    # Publish semver tags as releases.
+    tags: ["v*.*.*"]
   pull_request:
     branches: [ main ]
 
@@ -18,3 +20,6 @@ jobs:
       run: cmake --build .
     - name: test
       run: ctest -C Release -T test --output-on-failure --timeout 10
+    - name: conan create
+      run: conan create .
+      

@@ -30,16 +30,9 @@ include_directories(
     "${CMAKE_SOURCE_DIR}/include"
 )
 
-SET( INCLUDE_FILES
-    "include/types.h"
-    "include/tcp_connection.h"
-)
-
 check_cxx_compiler_flag(-std=c++20 HAVE_FLAG_STD_CXX20)
 
 if(HAVE_FLAG_STD_CXX20)
-
-    # add_definitions("-pthread -fcoroutines -std=c++20")
 
     set( THREAD_CXX_FLAGS "-pthread")
 
@@ -60,7 +53,11 @@ else()
 endif()
 
 
-set( CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}" )
+# install headers
+install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/cpool"
+)
 
 # create and configure the test targets
 set(BUILD_TESTING ON)
