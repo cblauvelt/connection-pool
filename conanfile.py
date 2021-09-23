@@ -53,7 +53,7 @@ class CPoolConan(ConanFile):
 
     def package(self):
         self.copy("LICENSE", dst="licenses")
-        self.copy("*.h", dst="include", src=".")
+        self.copy("*.hpp", dst="include/cpool", src="include")
 
     def package_id(self):
         self.info.header_only()
