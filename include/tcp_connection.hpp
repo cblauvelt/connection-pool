@@ -405,7 +405,7 @@ class tcp_connection {
   private:
     boost::asio::io_context& ctx_;
     tcp::socket socket_;
-    detail::timer timer_;
+    timer timer_;
     tcp::endpoint endpoint_;
     std::string host_;
     uint16_t port_;

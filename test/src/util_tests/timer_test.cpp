@@ -29,7 +29,7 @@ namespace asio = boost::asio;
 using namespace std::chrono_literals;
 
 awaitable<void> basic_timer_test(asio::io_context& ctx) {
-    cpool::detail::timer timer(ctx);
+    cpool::timer timer(ctx);
     auto delay = 100ms;
 
     // test expires_after semantics
@@ -60,7 +60,7 @@ awaitable<void> basic_timer_test(asio::io_context& ctx) {
 }
 
 awaitable<void> cancel_timer_test(asio::io_context& ctx) {
-    cpool::detail::timer timer(ctx);
+    cpool::timer timer(ctx);
     auto delay = 100ms;
 
     timer.expires_after(delay);
@@ -79,8 +79,8 @@ awaitable<void> cancel_timer_test(asio::io_context& ctx) {
 }
 
 awaitable<void> nothrow_timer_test(asio::io_context& ctx) {
-    cpool::detail::timer timer(ctx);
-    cpool::detail::timer timer2(ctx);
+    cpool::timer timer(ctx);
+    cpool::timer timer2(ctx);
     auto delay = 100ms;
     auto delay2 = 50ms;
 

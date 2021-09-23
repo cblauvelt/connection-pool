@@ -344,7 +344,7 @@ class ssl_connection {
   private:
     asio::io_context& ctx_;
     ssl_socket stream_;
-    detail::timer timer_;
+    timer timer_;
     tcp::endpoint endpoint_;
     std::string host_;
     uint16_t port_;

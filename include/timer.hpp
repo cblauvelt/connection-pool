@@ -6,8 +6,6 @@
 
 namespace cpool {
 
-namespace detail {
-
 namespace asio = boost::asio;
 
 using time_point = typename std::chrono::steady_clock::time_point;
@@ -54,7 +52,5 @@ class timer {
     asio::steady_timer timer_;
     bool pending_;
 };
-
-} // namespace detail
 
 } // namespace cpool
