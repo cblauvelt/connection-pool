@@ -4,13 +4,39 @@
 #include <tuple>
 
 #include <boost/asio.hpp>
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/experimental/as_tuple.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <boost/asio/ssl.hpp>
+#include <boost/asio/write.hpp>
+
+#include <fmt/core.h>
 
 #include "error.hpp"
 
 namespace cpool {
 
-using tcp = boost::asio::ip::tcp;
-using asio_error = boost::system::error_code;
+namespace net = boost::asio;
+namespace ssl = net::ssl;
+using namespace boost::asio::experimental::awaitable_operators;
+using namespace std::chrono_literals;
+
+using tcp = net::ip::tcp;
+using error_code = boost::system::error_code;
+using system_error = boost::system::system_error;
+using time_point = typename std::chrono::steady_clock::time_point;
+using boost::asio::awaitable;
+using boost::asio::co_spawn;
+using boost::asio::detached;
+using boost::asio::use_awaitable;
+using boost::asio::experimental::as_tuple;
+using std::chrono::milliseconds;
+using std::chrono::seconds;
+using ssl_socket = ssl::stream<tcp::socket>;
 
 enum class client_connection_state : uint8_t;
 enum class server_connection_state : uint8_t;

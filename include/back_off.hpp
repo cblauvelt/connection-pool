@@ -4,11 +4,9 @@
 #include <random>
 #include <stdexcept>
 
-namespace cpool {
+#include "types.hpp"
 
-using namespace std::chrono_literals;
-using std::chrono::milliseconds;
-using std::chrono::seconds;
+namespace cpool {
 
 inline milliseconds
 timer_delay(uint8_t num_retries,

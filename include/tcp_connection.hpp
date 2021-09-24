@@ -9,18 +9,6 @@
 #include <tuple>
 #include <vector>
 
-#include <boost/asio.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/write.hpp>
-
-#include <fmt/core.h>
-
 #include "client_state.hpp"
 #include "error.hpp"
 #include "timer.hpp"
@@ -28,33 +16,29 @@
 
 namespace cpool {
 
-namespace asio = boost::asio;
-using boost::asio::awaitable;
-using boost::asio::co_spawn;
-using boost::asio::detached;
-using boost::asio::use_awaitable;
-using boost::asio::ip::tcp;
-using namespace boost::asio::experimental::awaitable_operators;
-using boost::asio::experimental::as_tuple;
-using milliseconds = std::chrono::milliseconds;
-using boost::asio::ip::tcp;
-
 class tcp_connection {
 
   public:
     tcp_connection() = delete;
 
     tcp_connection(boost::asio::io_context& io_context)
-        : ctx_(io_context), socket_(io_context), timer_(io_context), host_(),
-          port_(0), state_(client_connection_state::disconnected),
-          state_change_handler_() {}
+        : ctx_(io_context)
+        , socket_(io_context)
+        , timer_(io_context)
+        , host_()
+        , port_(0)
+        , state_(client_connection_state::disconnected)
+        , state_change_handler_() {}
 
     tcp_connection(boost::asio::io_context& io_context, std::string host,
                    uint16_t port)
-        : ctx_(io_context), socket_(io_context), timer_(io_context),
-          host_(host), port_(port),
-          state_(client_connection_state::disconnected),
-          state_change_handler_() {}
+        : ctx_(io_context)
+        , socket_(io_context)
+        , timer_(io_context)
+        , host_(host)
+        , port_(port)
+        , state_(client_connection_state::disconnected)
+        , state_change_handler_() {}
 
     tcp_connection(const tcp_connection&) = delete;
     tcp_connection& operator=(const tcp_connection&) = delete;

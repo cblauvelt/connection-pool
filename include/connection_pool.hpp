@@ -6,32 +6,11 @@
 #include <unordered_map>
 // #include <iostream>
 
-#include <boost/asio.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/write.hpp>
-
-#include <fmt/core.h>
-
 #include "back_off.hpp"
+#include "condition_variable.hpp"
 #include "error.hpp"
 #include "timer.hpp"
 #include "types.hpp"
-
-using boost::asio::awaitable;
-using boost::asio::co_spawn;
-using boost::asio::detached;
-using boost::asio::use_awaitable;
-using boost::asio::use_awaitable_t;
-using boost::asio::ip::tcp;
-using namespace boost::asio::experimental::awaitable_operators;
-using boost::asio::experimental::as_tuple;
-using boost::asio::experimental::as_tuple_t;
 
 namespace cpool {
 
@@ -43,9 +22,10 @@ template <class T> class connection_pool {
   public:
     connection_pool(std::function<std::unique_ptr<T>(void)> constructor_func,
                     size_t max_connections = default_max_connections)
-        : idle_connections_(), busy_connections_(),
-          constructor_func_(constructor_func),
-          max_connections_(max_connections) {}
+        : idle_connections_()
+        , busy_connections_()
+        , constructor_func_(constructor_func)
+        , max_connections_(max_connections) {}
 
     awaitable<T*> get_connection() {
         T* connection = nullptr;
@@ -145,6 +125,8 @@ template <class T> class connection_pool {
         std::lock_guard<std::mutex> guard{mtx_};
         return busy_connections_.size();
     }
+
+    size_t max_size() const { return max_connections_; }
 
   private:
     static const int default_max_connections = 16;

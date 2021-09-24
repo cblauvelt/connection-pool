@@ -30,6 +30,14 @@ target_include_directories(${TIMER_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(${TIMER_TEST} ${CONAN_LIBS})
 add_test(NAME ${TIMER_TEST} COMMAND $<TARGET_FILE:${TIMER_TEST}>)
 
+set(CV_TEST "cv_test")
+add_executable(${CV_TEST}
+        "src/util_tests/cv_test.cpp"
+)
+target_include_directories(${CV_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(${CV_TEST} ${CONAN_LIBS})
+add_test(NAME ${CV_TEST} COMMAND $<TARGET_FILE:${CV_TEST}>)
+
 set(CLIENT_TEST "client_test")
 add_executable(${CLIENT_TEST}
         "src/client_test/client_test.cpp"

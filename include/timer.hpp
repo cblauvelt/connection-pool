@@ -1,22 +1,13 @@
 #pragma once
 
-#include <boost/asio.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
+#include "types.hpp"
 
 namespace cpool {
-
-namespace asio = boost::asio;
-
-using time_point = typename std::chrono::steady_clock::time_point;
-using boost::asio::awaitable;
-using boost::asio::use_awaitable;
-using boost::asio::experimental::as_tuple;
 
 class timer {
 
   public:
-    timer(asio::io_context& context) : timer_(context) {}
+    timer(net::io_context& context) : timer_(context) {}
 
     void expires_at(time_point tp) {
         timer_.expires_at(tp);
@@ -42,6 +33,12 @@ class timer {
         pending_ = false;
     }
 
+    awaitable<void> async_wait(std::chrono::milliseconds ms) {
+        expires_after(ms);
+        co_await timer_.async_wait(use_awaitable);
+        pending_ = false;
+    }
+
     bool pending() const { return pending_; }
 
     bool expired() const {
@@ -49,7 +46,7 @@ class timer {
     }
 
   private:
-    asio::steady_timer timer_;
+    net::steady_timer timer_;
     bool pending_;
 };
 

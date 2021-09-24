@@ -9,39 +9,12 @@
 #include <tuple>
 #include <vector>
 
-#include <boost/asio.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/ssl.hpp>
-#include <boost/asio/write.hpp>
-
-#include <fmt/core.h>
-
 #include "client_state.hpp"
 #include "error.hpp"
 #include "timer.hpp"
 #include "types.hpp"
 
 namespace cpool {
-
-namespace asio = boost::asio;
-namespace ssl = boost::asio::ssl;
-
-using boost::asio::awaitable;
-using boost::asio::co_spawn;
-using boost::asio::detached;
-using boost::asio::use_awaitable;
-using boost::asio::ip::tcp;
-using namespace boost::asio::experimental::awaitable_operators;
-using boost::asio::experimental::as_tuple;
-using milliseconds = std::chrono::milliseconds;
-using boost::asio::ip::tcp;
-using ssl_socket = ssl::stream<tcp::socket>;
 
 struct ssl_options {
     /// Adds the Server Name Indication extension;
@@ -57,18 +30,26 @@ class ssl_connection {
     ssl_connection() = delete;
 
     ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx)
-        : ctx_(io_context), stream_(io_context, ssl_ctx), timer_(io_context),
-          host_(), port_(0), ssl_options_(default_ssl_options),
-          state_(client_connection_state::disconnected),
-          state_change_handler_() {}
+        : ctx_(io_context)
+        , stream_(io_context, ssl_ctx)
+        , timer_(io_context)
+        , host_()
+        , port_(0)
+        , ssl_options_(default_ssl_options)
+        , state_(client_connection_state::disconnected)
+        , state_change_handler_() {}
 
     ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx,
                    std::string host, uint16_t port,
                    ssl_options options = default_ssl_options)
-        : ctx_(io_context), stream_(io_context, ssl_ctx), timer_(io_context),
-          host_(host), port_(port), ssl_options_(options),
-          state_(client_connection_state::disconnected),
-          state_change_handler_() {}
+        : ctx_(io_context)
+        , stream_(io_context, ssl_ctx)
+        , timer_(io_context)
+        , host_(host)
+        , port_(port)
+        , ssl_options_(options)
+        , state_(client_connection_state::disconnected)
+        , state_change_handler_() {}
 
     ssl_connection(const ssl_connection&) = delete;
     ssl_connection& operator=(const ssl_connection&) = delete;

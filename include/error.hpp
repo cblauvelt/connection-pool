@@ -10,25 +10,29 @@ enum class generic_error_code { no_error = 0, generic_error };
 class error {
 
   public:
-    error() : error_code_(0), message_() {}
+    error()
+        : error_code_(0)
+        , message_() {}
 
     error(std::error_code error_code)
-        : error_code_(static_cast<int>(error_code.value())),
-          message_(error_code.message()) {}
+        : error_code_(static_cast<int>(error_code.value()))
+        , message_(error_code.message()) {}
 
     error(std::string error_message)
-        : error_code_(static_cast<int>(generic_error_code::generic_error)),
-          message_(error_message) {}
+        : error_code_(static_cast<int>(generic_error_code::generic_error))
+        , message_(error_message) {}
 
     error(const char* error_message)
-        : error_code_(static_cast<int>(generic_error_code::generic_error)),
-          message_(error_message) {}
+        : error_code_(static_cast<int>(generic_error_code::generic_error))
+        , message_(error_message) {}
 
     error(std::error_code error_code, std::string error_message)
-        : error_code_(error_code.value()), message_(error_message) {}
+        : error_code_(error_code.value())
+        , message_(error_message) {}
 
     error(int error_code, std::string error_message)
-        : error_code_(error_code), message_(error_message) {}
+        : error_code_(error_code)
+        , message_(error_message) {}
 
     int error_code() const { return error_code_; }
 
