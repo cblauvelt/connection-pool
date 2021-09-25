@@ -31,7 +31,8 @@ template <typename T> std::string bytes_to_string(const T& buffer) {
     return retVal.str();
 }
 
-void on_connection_state_change(const cpool::client_connection_state state) {
+awaitable<void>
+on_connection_state_change(const cpool::client_connection_state state) {
     switch (state) {
     case cpool::client_connection_state::resolving:
         EXPECT_TRUE(true);
@@ -56,11 +57,14 @@ void on_connection_state_change(const cpool::client_connection_state state) {
     default:
         EXPECT_TRUE(false);
     }
+
+    co_return;
 }
 
 awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
                             bool last_task = false) {
-    cpool::ssl_connection connection(ctx, ssl_ctx, "google.com", 443,
+    auto exec = co_await cpool::net::this_coro::executor;
+    cpool::ssl_connection connection(exec, ssl_ctx, "google.com", 443,
                                      cpool::ssl_options{.sni = true});
     connection.set_state_change_handler(
         std::bind(on_connection_state_change, std::placeholders::_1));
@@ -73,9 +77,8 @@ awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
     if (last_task) {
         // Wait a few ms for the other coroutines to finish
         // This would be better handled using a barrier but that's not in gcc10
-        boost::asio::steady_timer timer(ctx);
-        timer.expires_from_now(250ms);
-        co_await timer.async_wait(use_awaitable);
+        cpool::timer timer(exec);
+        co_await timer.async_wait(250ms);
         ctx.stop();
     }
 }

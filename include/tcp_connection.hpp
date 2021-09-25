@@ -21,20 +21,17 @@ class tcp_connection {
   public:
     tcp_connection() = delete;
 
-    tcp_connection(boost::asio::io_context& io_context)
-        : ctx_(io_context)
-        , socket_(io_context)
-        , timer_(io_context.get_executor())
+    tcp_connection(net::any_io_executor exec)
+        : socket_(exec)
+        , timer_(exec)
         , host_()
         , port_(0)
         , state_(client_connection_state::disconnected)
         , state_change_handler_() {}
 
-    tcp_connection(boost::asio::io_context& io_context, std::string host,
-                   uint16_t port)
-        : ctx_(io_context)
-        , socket_(io_context)
-        , timer_(io_context.get_executor())
+    tcp_connection(net::any_io_executor exec, std::string host, uint16_t port)
+        : socket_(exec)
+        , timer_(exec)
         , host_(host)
         , port_(port)
         , state_(client_connection_state::disconnected)
@@ -48,7 +45,7 @@ class tcp_connection {
      *
      * @returns The executor context for the connection
      */
-    asio::io_context& get_context() { return ctx_; }
+    net::any_io_executor get_executor() { return timer_.get_executor(); }
 
     /**
      * @returns A reference to the internal socket object.
@@ -386,12 +383,12 @@ class tcp_connection {
 
         state_ = state;
         if (state_change_handler_) {
-            ctx_.post(bind(state_change_handler_, state_));
+            auto executor = timer_.get_executor();
+            co_spawn(executor, bind(state_change_handler_, state_), detached);
         }
     }
 
   private:
-    boost::asio::io_context& ctx_;
     tcp::socket socket_;
     timer timer_;
     tcp::endpoint endpoint_;

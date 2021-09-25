@@ -28,11 +28,11 @@ template <typename T> std::string bytes_to_string(const T& buffer) {
 }
 
 awaitable<void> mock_connection_test(asio::io_context& ctx) {
+    auto executor = co_await net::this_coro::executor;
     auto connection_creator = [&]() -> std::unique_ptr<test_connection> {
-        return std::make_unique<test_connection>(ctx);
+        return std::make_unique<test_connection>(executor);
     };
 
-    auto executor = co_await net::this_coro::executor;
     auto pool = connection_pool<test_connection>(executor, connection_creator,
                                                  num_connections);
     auto connection = co_await pool.get_connection();
@@ -77,7 +77,7 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
     EXPECT_EQ(pool.size(), 2);
 
     // expect exception on releasing unmanaged connection
-    auto unmanaged_connection = std::make_unique<test_connection>(ctx);
+    auto unmanaged_connection = std::make_unique<test_connection>(executor);
     EXPECT_THROW(pool.release_connection(unmanaged_connection.get()),
                  std::runtime_error);
 
@@ -85,11 +85,11 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
 }
 
 awaitable<void> too_many_try_connections_test(asio::io_context& ctx) {
+    auto executor = co_await net::this_coro::executor;
     auto connection_creator = [&]() -> std::unique_ptr<test_connection> {
-        return std::make_unique<test_connection>(ctx);
+        return std::make_unique<test_connection>(executor);
     };
 
-    auto executor = co_await net::this_coro::executor;
     auto pool = connection_pool<test_connection>(executor, connection_creator,
                                                  num_connections);
     std::array<test_connection*, num_connections> connections;
@@ -118,11 +118,11 @@ awaitable<void> release_connection(connection_pool<test_connection>& pool,
 }
 
 awaitable<void> too_many_connections_test(asio::io_context& ctx) {
+    auto executor = co_await net::this_coro::executor;
     auto connection_creator = [&]() -> std::unique_ptr<test_connection> {
-        return std::make_unique<test_connection>(ctx);
+        return std::make_unique<test_connection>(executor);
     };
 
-    auto executor = co_await net::this_coro::executor;
     auto pool = connection_pool<test_connection>(executor, connection_creator,
                                                  num_connections);
     std::array<test_connection*, num_connections> connections;
@@ -143,11 +143,12 @@ awaitable<void> too_many_connections_test(asio::io_context& ctx) {
 }
 
 awaitable<void> echo_connection_test(asio::io_context& ctx) {
+    auto executor = co_await net::this_coro::executor;
     auto connection_creator = [&]() -> std::unique_ptr<tcp_connection> {
-        return std::make_unique<tcp_connection>(ctx, "localhost", port_number);
+        return std::make_unique<tcp_connection>(executor, "localhost",
+                                                port_number);
     };
 
-    auto executor = co_await net::this_coro::executor;
     auto pool = connection_pool<tcp_connection>(executor, connection_creator,
                                                 num_connections);
     auto connection = co_await pool.get_connection();

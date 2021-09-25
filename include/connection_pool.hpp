@@ -61,7 +61,8 @@ template <class T> class connection_pool {
         // attempt connection if not connected
         if (connection != nullptr) {
             auto err = co_await connection->connect();
-            boost::asio::steady_timer timer(connection->get_context());
+            boost::asio::steady_timer timer(
+                std::move(connection->get_executor()));
 
             // cout << "Attempting first connect" << endl;
             co_await connection->connect();
@@ -76,7 +77,10 @@ template <class T> class connection_pool {
                 co_await timer.async_wait(use_awaitable);
 
                 // cout << "connection attempt " << attempts << endl;
-                co_await connection->connect();
+                auto error = co_await connection->connect();
+                if (error.error_code() == net::error::operation_aborted) {
+                    co_return nullptr;
+                }
             }
         }
 

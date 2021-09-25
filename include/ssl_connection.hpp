@@ -29,22 +29,20 @@ class ssl_connection {
   public:
     ssl_connection() = delete;
 
-    ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx)
-        : ctx_(io_context)
-        , stream_(io_context, ssl_ctx)
-        , timer_(io_context.get_executor())
+    ssl_connection(net::any_io_executor exec, ssl::context& ssl_ctx)
+        : stream_(exec, ssl_ctx)
+        , timer_(exec)
         , host_()
         , port_(0)
         , ssl_options_(default_ssl_options)
         , state_(client_connection_state::disconnected)
         , state_change_handler_() {}
 
-    ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx,
+    ssl_connection(net::any_io_executor exec, ssl::context& ssl_ctx,
                    std::string host, uint16_t port,
                    ssl_options options = default_ssl_options)
-        : ctx_(io_context)
-        , stream_(io_context, ssl_ctx)
-        , timer_(io_context.get_executor())
+        : stream_(exec, ssl_ctx)
+        , timer_(exec)
         , host_(host)
         , port_(port)
         , ssl_options_(options)
@@ -59,7 +57,7 @@ class ssl_connection {
      *
      * @returns The executor context for the connection
      */
-    asio::io_context& get_context() { return ctx_; }
+    net::any_io_executor get_executor() { return timer_.get_executor(); }
 
     /**
      * @returns A reference to the internal socket object.
@@ -319,12 +317,12 @@ class ssl_connection {
 
         state_ = state;
         if (state_change_handler_) {
-            ctx_.post(bind(state_change_handler_, state_));
+            auto executor = timer_.get_executor();
+            co_spawn(executor, bind(state_change_handler_, state_), detached);
         }
     }
 
   private:
-    asio::io_context& ctx_;
     ssl_socket stream_;
     timer timer_;
     tcp::endpoint endpoint_;

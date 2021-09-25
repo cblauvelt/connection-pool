@@ -10,11 +10,12 @@
 #include "core/echo_server.hpp"
 #include "core/slow_echo_server.hpp"
 
+namespace {
+
 using std::cout;
 using std::endl;
 using namespace std::chrono_literals;
-
-namespace {
+using namespace cpool;
 
 constexpr uint16_t port_number = 55555;
 constexpr uint16_t slow_port_number = port_number + 1;
@@ -29,7 +30,8 @@ template <typename T> std::string bytes_to_string(const T& buffer) {
     return retVal.str();
 }
 
-void on_connection_state_change(const cpool::client_connection_state state) {
+awaitable<void>
+on_connection_state_change(const cpool::client_connection_state state) {
     switch (state) {
     case cpool::client_connection_state::resolving:
         EXPECT_TRUE(true);
@@ -54,11 +56,14 @@ void on_connection_state_change(const cpool::client_connection_state state) {
     default:
         EXPECT_TRUE(false);
     }
+
+    co_return;
 }
 
 awaitable<void> client_test(boost::asio::io_context& ctx,
                             bool last_task = false) {
-    cpool::tcp_connection connection(ctx, "localhost", port_number);
+    auto executor = co_await net::this_coro::executor;
+    cpool::tcp_connection connection(executor, "localhost", port_number);
     connection.set_state_change_handler(
         std::bind(on_connection_state_change, std::placeholders::_1));
 
@@ -91,7 +96,8 @@ awaitable<void> client_test(boost::asio::io_context& ctx,
 }
 
 awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
-    cpool::tcp_connection connection(ctx, "localhost", slow_port_number);
+    auto executor = co_await net::this_coro::executor;
+    cpool::tcp_connection connection(executor, "localhost", slow_port_number);
     connection.set_state_change_handler(
         std::bind(on_connection_state_change, std::placeholders::_1));
 

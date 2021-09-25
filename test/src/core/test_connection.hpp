@@ -9,46 +9,23 @@
 #include <tuple>
 #include <vector>
 
-#include <boost/asio.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/experimental/as_tuple.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/write.hpp>
-
-#include <fmt/core.h>
-
 #include "error.hpp"
 #include "timer.hpp"
 #include "types.hpp"
 
-using boost::asio::awaitable;
-using boost::asio::co_spawn;
-using boost::asio::detached;
-using boost::asio::use_awaitable;
-using boost::asio::use_awaitable_t;
-using boost::asio::ip::tcp;
-using namespace boost::asio::experimental::awaitable_operators;
-using boost::asio::experimental::as_tuple;
-using boost::asio::experimental::as_tuple_t;
-namespace asio = boost::asio;
-
 class test_connection {
 
   public:
-    test_connection(asio::io_context& ctx);
+    test_connection(cpool::net::any_io_executor exec);
 
-    asio::io_context& get_context();
+    cpool::net::any_io_executor get_executor();
 
     bool connected();
 
-    awaitable<cpool::error> connect();
-    awaitable<cpool::error> disconnect();
+    cpool::awaitable<cpool::error> connect();
+    cpool::awaitable<cpool::error> disconnect();
 
   private:
-    asio::io_context& ctx_;
+    cpool::net::any_io_executor exec_;
     bool connected_;
 };

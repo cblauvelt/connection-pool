@@ -64,7 +64,7 @@ using write_result_t = std::tuple<cpool::error, std::size_t>;
  * sio::network::ConnectionState.
  */
 using connection_state_change_handler =
-    std::function<void(const client_connection_state state)>;
+    std::function<awaitable<void>(const client_connection_state state)>;
 
 namespace detail {
 /**

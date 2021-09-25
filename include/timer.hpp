@@ -10,6 +10,8 @@ class timer {
     timer(net::any_io_executor exec)
         : timer_(std::move(exec)) {}
 
+    net::any_io_executor get_executor() { return timer_.get_executor(); }
+
     void expires_at(time_point tp) {
         timer_.expires_at(tp);
         pending_ = true;
