@@ -66,7 +66,7 @@ awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
         std::bind(on_connection_state_change, std::placeholders::_1));
 
     auto error = co_await connection.connect();
-    EXPECT_FALSE(error);
+    EXPECT_FALSE(error) << error.message();
 
     co_await connection.disconnect();
 

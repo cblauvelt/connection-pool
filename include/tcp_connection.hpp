@@ -24,7 +24,7 @@ class tcp_connection {
     tcp_connection(boost::asio::io_context& io_context)
         : ctx_(io_context)
         , socket_(io_context)
-        , timer_(io_context)
+        , timer_(io_context.get_executor())
         , host_()
         , port_(0)
         , state_(client_connection_state::disconnected)
@@ -34,7 +34,7 @@ class tcp_connection {
                    uint16_t port)
         : ctx_(io_context)
         , socket_(io_context)
-        , timer_(io_context)
+        , timer_(io_context.get_executor())
         , host_(host)
         , port_(port)
         , state_(client_connection_state::disconnected)
@@ -54,7 +54,7 @@ class tcp_connection {
      * @returns A reference to the internal socket object.
      *
      * @secton WARNING: Operations performed on this object that are not
-     * performed through the TcpConnection interface may prevent the interface
+     * performed through the tcp_connection interface may prevent the interface
      * from recognizing changes in state.
      */
     tcp::socket& socket() { return socket_; }
@@ -65,8 +65,8 @@ class tcp_connection {
      *
      * @section: The host name is only changed if the interface is not
      * connected. Otherwise it is dropped. The value of host should be compared
-     * to a follow-up call to TcpConnection::host if the change is required and
-     * the TcpConnection object not being in a connected state cannot be
+     * to a follow-up call to tcp_connection::host if the change is required and
+     * the tcp_connection object not being in a connected state cannot be
      * guaranteed.
      */
     error set_host(std::string host) {
@@ -90,8 +90,8 @@ class tcp_connection {
      *
      * @section: The port number is only changed if the interface is not
      * connected. Otherwise it is dropped. The value of port should be compared
-     * to a follow-up call to TcpConnection::port if the change is required and
-     * the TcpConnection object not being in a connected state cannot be
+     * to a follow-up call to tcp_connection::port if the change is required and
+     * the tcp_connection object not being in a connected state cannot be
      * guaranteed.
      */
     error set_port(uint16_t port) {
@@ -141,7 +141,7 @@ class tcp_connection {
     }
 
     /**
-     * @brief Sets the function object to call when the TcpConnection object
+     * @brief Sets the function object to call when the tcp_connection object
      * changes state as defined by ConnectionState.
      * @param handler The function oject to call.
      */
@@ -163,7 +163,7 @@ class tcp_connection {
      * host.
      * @param handler The callback to execute once this function is complete.
      */
-    awaitable<cpool::error> connect() {
+    [[nodiscard]] awaitable<cpool::error> connect() {
         if (host_.empty() || port_ == 0) {
             co_return cpool::error(
                 boost::asio::error::operation_aborted,
@@ -198,10 +198,10 @@ class tcp_connection {
     }
 
     /**
-     * @brief Disconnects the TcpConnection object making it no longer able to
+     * @brief Disconnects the tcp_connection object making it no longer able to
      * interact with the remote endpoint.
      */
-    awaitable<error> disconnect() {
+    [[nodiscard]] awaitable<error> disconnect() {
         boost::system::error_code err;
 
         if (!socket_.is_open()) {
@@ -226,7 +226,8 @@ class tcp_connection {
      * @returns write_result_t A tuple representing the error during writing and
      * the number of bytes written.
      */
-    template <typename bT> awaitable<write_result_t> write(const bT& buffer) {
+    template <typename bT>
+    [[nodiscard]] awaitable<write_result_t> write(const bT& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
@@ -258,7 +259,8 @@ class tcp_connection {
      * @returns write_result_t A tuple representing the error during writing and
      * the number of bytes written.
      */
-    template <typename bT> awaitable<write_result_t> write(const bT&& buffer) {
+    template <typename bT>
+    [[nodiscard]] awaitable<write_result_t> write(const bT&& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
@@ -289,7 +291,8 @@ class tcp_connection {
      * a number of bytes equal to buffer.size() has been read.
      * @param buffer The buffer that will contain the result of the read.
      */
-    template <typename bT> awaitable<read_result_t> read(const bT& buffer) {
+    template <typename bT>
+    [[nodiscard]] awaitable<read_result_t> read(const bT& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_read] = co_await asio::async_read(
@@ -319,7 +322,8 @@ class tcp_connection {
      * a number of bytes equal to buffer.size() has been read.
      * @param buffer The buffer that will contain the result of the read.
      */
-    template <typename bT> awaitable<read_result_t> read(const bT&& buffer) {
+    template <typename bT>
+    [[nodiscard]] awaitable<read_result_t> read(const bT&& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_read] = co_await asio::async_read(
@@ -350,7 +354,7 @@ class tcp_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    awaitable<read_result_t> read_some(const bT& buffer) {
+    [[nodiscard]] awaitable<read_result_t> read_some(const bT& buffer) {
         auto [err, bytes_read] =
             co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
@@ -365,7 +369,7 @@ class tcp_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    awaitable<read_result_t> read_some(const bT&& buffer) {
+    [[nodiscard]] awaitable<read_result_t> read_some(const bT&& buffer) {
         auto [err, bytes_read] =
             co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {

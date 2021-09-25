@@ -20,14 +20,16 @@ namespace cpool {
 template <class T> class connection_pool {
 
   public:
-    connection_pool(std::function<std::unique_ptr<T>(void)> constructor_func,
+    connection_pool(net::any_io_executor exec,
+                    std::function<std::unique_ptr<T>(void)> constructor_func,
                     size_t max_connections = default_max_connections)
         : idle_connections_()
         , busy_connections_()
+        , cv_(std::move(exec))
         , constructor_func_(constructor_func)
         , max_connections_(max_connections) {}
 
-    awaitable<T*> get_connection() {
+    awaitable<T*> try_get_connection() {
         T* connection = nullptr;
 
         {
@@ -43,7 +45,8 @@ template <class T> class connection_pool {
                 busy_connections_.insert(std::move(node));
             }
 
-            // we couldnt get a connection from the idle pool
+            // we couldnt get a connection from the idle pool so try to create
+            // a new connection
             if (connection == nullptr &&
                 busy_connections_.size() < max_connections_) {
                 // cout << "Idle connection not available. Creating new
@@ -80,11 +83,23 @@ template <class T> class connection_pool {
         co_return connection;
     }
 
+    awaitable<T*> get_connection() {
+        T* connection = co_await try_get_connection();
+        while (connection == nullptr) {
+            co_await cv_.async_wait(
+                [&]() { return size_busy() < max_connections_; });
+            connection = co_await try_get_connection();
+        }
+
+        co_return connection;
+    }
+
     void release_connection(T* connection) {
         if (connection == nullptr) {
             return;
         }
 
+        std::lock_guard lock(mtx_);
         // find on busy stack
         auto it = busy_connections_.find(connection);
         if (it == busy_connections_.end()) {
@@ -106,7 +121,7 @@ template <class T> class connection_pool {
         if (connection->connected()) {
             idle_connections_.insert(std::move(node));
         }
-
+        cv_.notify_one();
         // node goes out of scope and the unique_ptr dies with it
         return;
     }
@@ -134,6 +149,7 @@ template <class T> class connection_pool {
     mutable std::mutex mtx_;
     std::unordered_map<T*, std::unique_ptr<T>> idle_connections_;
     std::unordered_map<T*, std::unique_ptr<T>> busy_connections_;
+    condition_variable cv_;
 
     std::function<std::unique_ptr<T>(void)> constructor_func_;
     size_t max_connections_;

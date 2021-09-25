@@ -9,13 +9,16 @@
 
 namespace cpool {
 
-struct condition_variable {
+class condition_variable {
+
+  public:
     condition_variable(net::any_io_executor exec)
         : timer_(std::move(exec)) {
         timer_.expires_at(std::chrono::steady_clock::time_point::max());
     }
 
-    template <class Pred> net::awaitable<void> wait(Pred pred);
+    template <class Pred>
+    [[nodiscard]] net::awaitable<void> async_wait(Pred pred);
 
     void notify_one() { timer_.cancel_one(); }
 
@@ -25,7 +28,8 @@ struct condition_variable {
     net::steady_timer timer_;
 };
 
-template <class Pred> net::awaitable<void> condition_variable::wait(Pred pred) {
+template <class Pred>
+net::awaitable<void> condition_variable::async_wait(Pred pred) {
     while (!pred()) {
         error_code ec;
         co_await timer_.async_wait(net::redirect_error(net::use_awaitable, ec));

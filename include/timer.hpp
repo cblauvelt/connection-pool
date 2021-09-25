@@ -7,7 +7,8 @@ namespace cpool {
 class timer {
 
   public:
-    timer(net::io_context& context) : timer_(context) {}
+    timer(net::any_io_executor exec)
+        : timer_(std::move(exec)) {}
 
     void expires_at(time_point tp) {
         timer_.expires_at(tp);
@@ -24,16 +25,14 @@ class timer {
         pending_ = false;
     }
 
-    std::chrono::steady_clock::time_point expires() const {
-        return timer_.expiry();
-    }
+    time_point expires() const { return timer_.expiry(); }
 
-    awaitable<void> async_wait() {
+    [[nodiscard]] awaitable<void> async_wait() {
         co_await timer_.async_wait(use_awaitable);
         pending_ = false;
     }
 
-    awaitable<void> async_wait(std::chrono::milliseconds ms) {
+    [[nodiscard]] awaitable<void> async_wait(std::chrono::milliseconds ms) {
         expires_after(ms);
         co_await timer_.async_wait(use_awaitable);
         pending_ = false;

@@ -32,7 +32,7 @@ class ssl_connection {
     ssl_connection(asio::io_context& io_context, ssl::context& ssl_ctx)
         : ctx_(io_context)
         , stream_(io_context, ssl_ctx)
-        , timer_(io_context)
+        , timer_(io_context.get_executor())
         , host_()
         , port_(0)
         , ssl_options_(default_ssl_options)
@@ -44,7 +44,7 @@ class ssl_connection {
                    ssl_options options = default_ssl_options)
         : ctx_(io_context)
         , stream_(io_context, ssl_ctx)
-        , timer_(io_context)
+        , timer_(io_context.get_executor())
         , host_(host)
         , port_(port)
         , ssl_options_(options)
@@ -174,7 +174,7 @@ class ssl_connection {
      * host.
      * @param handler The callback to execute once this function is complete.
      */
-    awaitable<cpool::error> connect() {
+    [[nodiscard]] awaitable<cpool::error> connect() {
         if (host_.empty() || port_ == 0) {
             co_return cpool::error(
                 boost::asio::error::operation_aborted,
@@ -228,7 +228,7 @@ class ssl_connection {
      * @brief Disconnects the ssl connection object making it no longer able to
      * interact with the remote endpoint.
      */
-    awaitable<error> disconnect() {
+    [[nodiscard]] awaitable<error> disconnect() {
         boost::system::error_code err;
 
         if (!stream_.lowest_layer().is_open()) {
@@ -254,7 +254,8 @@ class ssl_connection {
      * @returns write_result_t A tuple representing the error during writing and
      * the number of bytes written.
      */
-    template <typename bT> awaitable<write_result_t> write(const bT& buffer) {
+    template <typename bT>
+    [[nodiscard]] awaitable<write_result_t> write(const bT& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
@@ -286,7 +287,7 @@ class ssl_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    awaitable<read_result_t> read_some(const bT& buffer) {
+    [[nodiscard]] awaitable<read_result_t> read_some(const bT& buffer) {
         auto [err, bytes_read] =
             co_await stream_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
@@ -301,7 +302,7 @@ class ssl_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    awaitable<read_result_t> read_some(const bT&& buffer) {
+    [[nodiscard]] awaitable<read_result_t> read_some(const bT&& buffer) {
         auto [err, bytes_read] =
             co_await stream_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {

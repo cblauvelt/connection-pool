@@ -14,7 +14,7 @@ using namespace cpool;
 awaitable<void> wait(condition_variable& cv, bool& condition,
                      std::atomic<int>& barrier) {
 
-    co_await cv.wait([&]() { return condition; });
+    co_await cv.async_wait([&]() { return condition; });
     barrier--;
 }
 

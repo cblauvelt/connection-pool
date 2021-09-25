@@ -32,11 +32,17 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
         return std::make_unique<test_connection>(ctx);
     };
 
-    auto pool =
-        connection_pool<test_connection>(connection_creator, num_connections);
+    auto executor = co_await net::this_coro::executor;
+    auto pool = connection_pool<test_connection>(executor, connection_creator,
+                                                 num_connections);
     auto connection = co_await pool.get_connection();
 
+    // we cant use ASSERT_NE because it doesn't support co_return
     EXPECT_NE(connection, nullptr);
+    if (connection == nullptr) {
+        co_return;
+    }
+
     EXPECT_TRUE(connection->connected());
     EXPECT_EQ(pool.size_idle(), 0);
     EXPECT_EQ(pool.size_busy(), 1);
@@ -76,8 +82,39 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
                  std::runtime_error);
 
     ctx.stop();
+}
 
-    co_return;
+awaitable<void> too_many_try_connections_test(asio::io_context& ctx) {
+    auto connection_creator = [&]() -> std::unique_ptr<test_connection> {
+        return std::make_unique<test_connection>(ctx);
+    };
+
+    auto executor = co_await net::this_coro::executor;
+    auto pool = connection_pool<test_connection>(executor, connection_creator,
+                                                 num_connections);
+    std::array<test_connection*, num_connections> connections;
+    for (int i = 0; i < num_connections; i++) {
+        connections[i] = co_await pool.try_get_connection();
+        EXPECT_NE(connections[i], nullptr);
+    }
+    EXPECT_EQ(pool.size_idle(), 0);
+    EXPECT_EQ(pool.size_busy(), num_connections);
+    EXPECT_EQ(pool.size(), num_connections);
+
+    auto connection = co_await pool.try_get_connection();
+    EXPECT_EQ(connection, nullptr);
+
+    ctx.stop();
+}
+
+awaitable<void> release_connection(connection_pool<test_connection>& pool,
+                                   test_connection* connection) {
+    auto executor = co_await net::this_coro::executor;
+
+    timer timer(executor);
+    co_await timer.async_wait(50ms);
+
+    pool.release_connection(connection);
 }
 
 awaitable<void> too_many_connections_test(asio::io_context& ctx) {
@@ -85,18 +122,22 @@ awaitable<void> too_many_connections_test(asio::io_context& ctx) {
         return std::make_unique<test_connection>(ctx);
     };
 
-    auto pool =
-        connection_pool<test_connection>(connection_creator, num_connections);
+    auto executor = co_await net::this_coro::executor;
+    auto pool = connection_pool<test_connection>(executor, connection_creator,
+                                                 num_connections);
     std::array<test_connection*, num_connections> connections;
     for (int i = 0; i < num_connections; i++) {
         connections[i] = co_await pool.get_connection();
+        EXPECT_NE(connections[i], nullptr);
     }
     EXPECT_EQ(pool.size_idle(), 0);
     EXPECT_EQ(pool.size_busy(), num_connections);
     EXPECT_EQ(pool.size(), num_connections);
 
+    co_spawn(ctx, release_connection(pool, connections[0]), detached);
+
     auto connection = co_await pool.get_connection();
-    EXPECT_EQ(connection, nullptr);
+    EXPECT_NE(connection, nullptr);
 
     ctx.stop();
 }
@@ -106,25 +147,28 @@ awaitable<void> echo_connection_test(asio::io_context& ctx) {
         return std::make_unique<tcp_connection>(ctx, "localhost", port_number);
     };
 
-    auto pool =
-        connection_pool<tcp_connection>(connection_creator, num_connections);
+    auto executor = co_await net::this_coro::executor;
+    auto pool = connection_pool<tcp_connection>(executor, connection_creator,
+                                                num_connections);
     auto connection = co_await pool.get_connection();
 
     EXPECT_NE(connection, nullptr);
+    if (connection == nullptr) {
+        co_return;
+    }
+
     EXPECT_EQ(pool.size_idle(), 0);
     EXPECT_EQ(pool.size_busy(), 1);
     EXPECT_EQ(pool.size(), 1);
 
     std::string message = "Test message";
 
-    auto [err, bytes] =
-        co_await connection->write(boost::asio::buffer(message));
+    auto [err, bytes] = co_await connection->write(net::buffer(message));
     EXPECT_FALSE(err);
     EXPECT_EQ(bytes, message.length());
 
     std::vector<std::uint8_t> buf(256);
-    std::tie(err, bytes) =
-        co_await connection->read_some(boost::asio::buffer(buf));
+    std::tie(err, bytes) = co_await connection->read_some(net::buffer(buf));
     EXPECT_FALSE(err);
     EXPECT_EQ(bytes, message.length());
 
@@ -141,6 +185,14 @@ TEST(ConnectionPool, MockTest) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, mock_connection_test(std::ref(ctx)), detached);
+
+    ctx.run();
+}
+
+TEST(ConnectionPool, TooManyTryConnections) {
+    asio::io_context ctx(1);
+
+    co_spawn(ctx, too_many_try_connections_test(std::ref(ctx)), detached);
 
     ctx.run();
 }
