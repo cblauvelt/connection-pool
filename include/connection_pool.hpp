@@ -1,10 +1,10 @@
 #pragma once
 
 #include <chrono>
+// #include <iostream>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
-// #include <iostream>
 
 #include "back_off.hpp"
 #include "condition_variable.hpp"
@@ -59,7 +59,7 @@ template <class T> class connection_pool {
         }
 
         // attempt connection if not connected
-        if (connection != nullptr) {
+        if (connection != nullptr && !connection->connected()) {
             auto err = co_await connection->connect();
             boost::asio::steady_timer timer(
                 std::move(connection->get_executor()));

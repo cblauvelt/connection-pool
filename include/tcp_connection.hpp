@@ -229,6 +229,9 @@ class tcp_connection {
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
                 socket_, buffer, as_tuple(use_awaitable));
+            if (error_means_client_disconnected(err)) {
+                set_state(client_connection_state::disconnected);
+            }
             co_return std::make_tuple(error(err), bytes_written);
         }
 
@@ -262,6 +265,9 @@ class tcp_connection {
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
                 socket_, buffer, as_tuple(use_awaitable));
+            if (error_means_client_disconnected(err)) {
+                set_state(client_connection_state::disconnected);
+            }
             co_return std::make_tuple(error(err), bytes_written);
         }
 
@@ -294,6 +300,9 @@ class tcp_connection {
         if (!timer_.pending()) {
             auto [err, bytes_read] = co_await asio::async_read(
                 socket_, buffer, as_tuple(use_awaitable));
+            if (error_means_client_disconnected(err)) {
+                set_state(client_connection_state::disconnected);
+            }
             co_return std::make_tuple(error(err), bytes_read);
         }
 
@@ -325,6 +334,9 @@ class tcp_connection {
         if (!timer_.pending()) {
             auto [err, bytes_read] = co_await asio::async_read(
                 socket_, buffer, as_tuple(use_awaitable));
+            if (error_means_client_disconnected(err)) {
+                set_state(client_connection_state::disconnected);
+            }
             co_return std::make_tuple(error(err), bytes_read);
         }
 
