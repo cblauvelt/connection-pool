@@ -76,6 +76,12 @@ awaitable<void> mock_connection_test(asio::io_context& ctx) {
     EXPECT_EQ(pool.size_busy(), 0);
     EXPECT_EQ(pool.size(), 2);
 
+    auto connection3 = co_await pool.get_connection();
+    EXPECT_EQ(pool.size(), 2);
+    auto uniq_connection = pool.claim_connection(connection3);
+    EXPECT_NE(uniq_connection, nullptr);
+    EXPECT_EQ(pool.size(), 1);
+
     // expect exception on releasing unmanaged connection
     auto unmanaged_connection = std::make_unique<test_connection>(executor);
     EXPECT_THROW(pool.release_connection(unmanaged_connection.get()),

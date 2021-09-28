@@ -98,35 +98,56 @@ template <class T> class connection_pool {
         co_return connection;
     }
 
+    std::unique_ptr<T> claim_connection(T* connection) {
+        if (connection == nullptr) {
+            return nullptr;
+        }
+
+        std::lock_guard lock{mtx_};
+        auto connIt = busy_connections_.find(connection);
+        if (connIt == busy_connections_.end()) {
+            return nullptr;
+        }
+
+        auto uniq_connection = std::move(connIt->second);
+        busy_connections_.erase(connIt);
+
+        cv_.notify_one();
+        return uniq_connection;
+    }
+
     void release_connection(T* connection) {
         if (connection == nullptr) {
             return;
         }
 
-        std::lock_guard lock(mtx_);
-        // find on busy stack
-        auto it = busy_connections_.find(connection);
-        if (it == busy_connections_.end()) {
-            // This is a problem, either we have a bug or the
-            // user tried to release the connection twice
-            if (idle_connections_.contains(connection)) {
-                // it's all good, the user probably released twice
-                return;
+        {
+            std::lock_guard lock(mtx_);
+            // find on busy stack
+            auto it = busy_connections_.find(connection);
+            if (it == busy_connections_.end()) {
+                // This is a problem, either we have a bug or the
+                // user tried to release the connection twice
+                if (idle_connections_.contains(connection)) {
+                    // it's all good, the user probably released twice
+                    return;
+                }
+
+                // We're about to have a memory leak so throw an error to let
+                // the user know
+                throw std::runtime_error(
+                    "connection could not be released, memory leak possible");
             }
 
-            // We're about to have a memory leak so throw an error to let the
-            // user know
-            throw std::runtime_error(
-                "connection could not be released, memory leak possible");
+            // test if connected
+            auto node = busy_connections_.extract(it);
+            if (connection->connected()) {
+                idle_connections_.insert(std::move(node));
+            }
+            // node goes out of scope and the unique_ptr dies with it
         }
 
-        // test if connected
-        auto node = busy_connections_.extract(it);
-        if (connection->connected()) {
-            idle_connections_.insert(std::move(node));
-        }
         cv_.notify_one();
-        // node goes out of scope and the unique_ptr dies with it
         return;
     }
 
