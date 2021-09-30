@@ -254,30 +254,6 @@ class ssl_connection {
     }
 
     /**
-     * @brief Disconnects the ssl connection object making it no longer able to
-     * interact with the remote endpoint.
-     */
-    error disconnect() {
-        boost::system::error_code err;
-
-        if (!stream_.lowest_layer().is_open()) {
-            return error(boost::asio::error::not_connected, "not connected");
-        }
-
-        set_state(client_connection_state::disconnecting);
-        stream_.shutdown(err);
-        if (err == asio::error::eof) {
-            // Rationale:
-            // http://stackoverflow.com/questions/25587403/boost-asio-ssl-async-shutdown-always-finishes-with-an-error
-            err = {};
-        }
-
-        set_state(client_connection_state::disconnected);
-
-        return error(err);
-    }
-
-    /**
      * @brief Executes a write to the socket.
      * @param buffer The buffer that contains the data to be written.
      * @returns write_result_t A tuple representing the error during writing and

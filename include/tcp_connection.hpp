@@ -222,25 +222,6 @@ class tcp_connection {
     }
 
     /**
-     * @brief Disconnects the tcp_connection object making it no longer able to
-     * interact with the remote endpoint.
-     */
-    error disconnect() {
-        boost::system::error_code err;
-
-        if (!socket_.is_open()) {
-            return error(net::error::not_connected, "not connected");
-        }
-
-        set_state(client_connection_state::disconnecting);
-        socket_.shutdown(tcp::socket::shutdown_both, err);
-        socket_.close(err);
-        set_state(client_connection_state::disconnected);
-
-        return error(err);
-    }
-
-    /**
      * @brief Executes a write to the socket.
      * @param buffer The buffer that contains the data to be written.
      * @returns write_result_t A tuple representing the error during writing and
