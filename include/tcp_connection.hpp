@@ -171,7 +171,7 @@ class tcp_connection {
     [[nodiscard]] awaitable<cpool::error> async_connect() {
         if (host_.empty() || port_ == 0) {
             co_return cpool::error(
-                boost::asio::error::operation_aborted,
+                net::error::operation_aborted,
                 fmt::format("Host or port have not been set"));
         }
 
@@ -210,19 +210,34 @@ class tcp_connection {
         boost::system::error_code err;
 
         if (!socket_.is_open()) {
-            co_return error(boost::asio::error::not_connected, "not connected");
+            co_return error(net::error::not_connected, "not connected");
         }
 
         set_state(client_connection_state::disconnecting);
         socket_.shutdown(tcp::socket::shutdown_both, err);
-        if (err) {
-            co_return err;
-        }
-
         socket_.close(err);
         set_state(client_connection_state::disconnected);
 
         co_return err;
+    }
+
+    /**
+     * @brief Disconnects the tcp_connection object making it no longer able to
+     * interact with the remote endpoint.
+     */
+    error disconnect() {
+        boost::system::error_code err;
+
+        if (!socket_.is_open()) {
+            return error(net::error::not_connected, "not connected");
+        }
+
+        set_state(client_connection_state::disconnecting);
+        socket_.shutdown(tcp::socket::shutdown_both, err);
+        socket_.close(err);
+        set_state(client_connection_state::disconnected);
+
+        return error(err);
     }
 
     /**
@@ -250,7 +265,7 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)boost::asio::error::timed_out, "timed out"), 0);
+                error((int)net::error::timed_out, "timed out"), 0);
         }
 
         auto [err, bytes_read] =
@@ -286,7 +301,7 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)boost::asio::error::timed_out, "timed out"), 0);
+                error((int)net::error::timed_out, "timed out"), 0);
         }
 
         auto [err, bytes_read] =
@@ -321,7 +336,7 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)boost::asio::error::timed_out, "timed out"), 0);
+                error((int)net::error::timed_out, "timed out"), 0);
         }
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
@@ -355,7 +370,7 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)boost::asio::error::timed_out, "timed out"), 0);
+                error((int)net::error::timed_out, "timed out"), 0);
         }
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
