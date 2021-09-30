@@ -60,12 +60,10 @@ template <class T> class connection_pool {
 
         // attempt connection if not connected
         if (connection != nullptr && !connection->connected()) {
-            auto err = co_await connection->async_connect();
-            boost::asio::steady_timer timer(
-                std::move(connection->get_executor()));
+            boost::asio::steady_timer timer(connection->get_executor());
 
             // cout << "Attempting first connect" << endl;
-            co_await connection->async_connect();
+            auto err = co_await connection->async_connect();
 
             int attempts = 1;
             while (!connection->connected()) {
@@ -73,7 +71,7 @@ template <class T> class connection_pool {
                 // cout << "connection failed; waiting " << delay.count() << "
                 // milliseconds" << endl;
 
-                timer.expires_from_now();
+                timer.expires_from_now(delay);
                 co_await timer.async_wait(use_awaitable);
 
                 // cout << "connection attempt " << attempts << endl;
