@@ -69,10 +69,10 @@ awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
     connection.set_state_change_handler(
         std::bind(on_connection_state_change, std::placeholders::_1));
 
-    auto error = co_await connection.connect();
+    auto error = co_await connection.async_connect();
     EXPECT_FALSE(error) << error.message();
 
-    co_await connection.disconnect();
+    co_await connection.async_disconnect();
 
     if (last_task) {
         // Wait a few ms for the other coroutines to finish

@@ -170,12 +170,13 @@ awaitable<void> echo_connection_test(asio::io_context& ctx) {
 
     std::string message = "Test message";
 
-    auto [err, bytes] = co_await connection->write(net::buffer(message));
+    auto [err, bytes] = co_await connection->async_write(net::buffer(message));
     EXPECT_FALSE(err);
     EXPECT_EQ(bytes, message.length());
 
     std::vector<std::uint8_t> buf(256);
-    std::tie(err, bytes) = co_await connection->read_some(net::buffer(buf));
+    std::tie(err, bytes) =
+        co_await connection->async_read_some(net::buffer(buf));
     EXPECT_FALSE(err);
     EXPECT_EQ(bytes, message.length());
 

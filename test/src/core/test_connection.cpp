@@ -8,12 +8,12 @@ cpool::net::any_io_executor test_connection::get_executor() { return exec_; }
 
 bool test_connection::connected() { return connected_; }
 
-cpool::awaitable<cpool::error> test_connection::connect() {
+cpool::awaitable<cpool::error> test_connection::async_connect() {
     connected_ = true;
     co_return cpool::no_error;
 }
 
-cpool::awaitable<cpool::error> test_connection::disconnect() {
+cpool::awaitable<cpool::error> test_connection::async_disconnect() {
     connected_ = false;
     co_return cpool::no_error;
 }

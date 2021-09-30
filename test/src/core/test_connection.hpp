@@ -22,8 +22,8 @@ class test_connection {
 
     bool connected();
 
-    cpool::awaitable<cpool::error> connect();
-    cpool::awaitable<cpool::error> disconnect();
+    cpool::awaitable<cpool::error> async_connect();
+    cpool::awaitable<cpool::error> async_disconnect();
 
   private:
     cpool::net::any_io_executor exec_;

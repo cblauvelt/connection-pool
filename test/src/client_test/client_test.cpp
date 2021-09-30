@@ -67,27 +67,27 @@ awaitable<void> client_test(boost::asio::io_context& ctx,
     connection.set_state_change_handler(
         std::bind(on_connection_state_change, std::placeholders::_1));
 
-    auto error = co_await connection.connect();
+    auto error = co_await connection.async_connect();
     EXPECT_FALSE(error);
 
     size_t bytes = 0;
     std::string message = "Test message";
 
     std::tie(error, bytes) =
-        co_await connection.write(boost::asio::buffer(message));
+        co_await connection.async_write(boost::asio::buffer(message));
     EXPECT_FALSE(error);
     EXPECT_EQ(bytes, message.length());
 
     std::vector<std::uint8_t> buf(256);
     std::tie(error, bytes) =
-        co_await connection.read_some(boost::asio::buffer(buf));
+        co_await connection.async_read_some(boost::asio::buffer(buf));
     EXPECT_FALSE(error);
     EXPECT_EQ(bytes, message.length());
 
     auto bufferMessage = bytes_to_string(buf | std::views::take(bytes));
     EXPECT_EQ(bufferMessage, message);
 
-    error = co_await connection.disconnect();
+    error = co_await connection.async_disconnect();
     EXPECT_FALSE(error);
 
     if (last_task) {
@@ -101,7 +101,7 @@ awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
     connection.set_state_change_handler(
         std::bind(on_connection_state_change, std::placeholders::_1));
 
-    auto error = co_await connection.connect();
+    auto error = co_await connection.async_connect();
     EXPECT_FALSE(error);
 
     size_t bytes = 0;
@@ -109,19 +109,20 @@ awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
     auto delay = 500ms;
 
     std::tie(error, bytes) =
-        co_await connection.write(boost::asio::buffer(message));
+        co_await connection.async_write(boost::asio::buffer(message));
     EXPECT_FALSE(error);
     EXPECT_EQ(bytes, message.length());
 
     std::vector<std::uint8_t> buf(256);
     connection.expires_after(delay);
-    std::tie(error, bytes) = co_await connection.read(boost::asio::buffer(buf));
+    std::tie(error, bytes) =
+        co_await connection.async_read(boost::asio::buffer(buf));
     connection.expires_never();
     EXPECT_TRUE(error);
     EXPECT_EQ(error.error_code(), (int)boost::asio::error::timed_out);
     EXPECT_EQ(bytes, 0);
 
-    error = co_await connection.disconnect();
+    error = co_await connection.async_disconnect();
     EXPECT_FALSE(error);
 
     ctx.stop();

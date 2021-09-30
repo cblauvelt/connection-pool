@@ -40,6 +40,15 @@ class tcp_connection {
     tcp_connection(const tcp_connection&) = delete;
     tcp_connection& operator=(const tcp_connection&) = delete;
 
+    ~tcp_connection() {
+        if (!socket_.is_open()) {
+            return;
+        }
+
+        error_code err;
+        socket_.close(err);
+    }
+
     /**
      * @brief Returns the executor context for the connection
      *
@@ -157,10 +166,9 @@ class tcp_connection {
 
     /**
      * @brief Make a non-blocking call to resolve the remote endpoint given by
-     * host.
-     * @param handler The callback to execute once this function is complete.
+     * host and connect to the remote endpoint
      */
-    [[nodiscard]] awaitable<cpool::error> connect() {
+    [[nodiscard]] awaitable<cpool::error> async_connect() {
         if (host_.empty() || port_ == 0) {
             co_return cpool::error(
                 boost::asio::error::operation_aborted,
@@ -198,7 +206,7 @@ class tcp_connection {
      * @brief Disconnects the tcp_connection object making it no longer able to
      * interact with the remote endpoint.
      */
-    [[nodiscard]] awaitable<error> disconnect() {
+    [[nodiscard]] awaitable<error> async_disconnect() {
         boost::system::error_code err;
 
         if (!socket_.is_open()) {
@@ -224,7 +232,7 @@ class tcp_connection {
      * the number of bytes written.
      */
     template <typename bT>
-    [[nodiscard]] awaitable<write_result_t> write(const bT& buffer) {
+    [[nodiscard]] awaitable<write_result_t> async_write(const bT& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
@@ -260,7 +268,7 @@ class tcp_connection {
      * the number of bytes written.
      */
     template <typename bT>
-    [[nodiscard]] awaitable<write_result_t> write(const bT&& buffer) {
+    [[nodiscard]] awaitable<write_result_t> async_write(const bT&& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_written] = co_await asio::async_write(
@@ -295,7 +303,7 @@ class tcp_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    [[nodiscard]] awaitable<read_result_t> read(const bT& buffer) {
+    [[nodiscard]] awaitable<read_result_t> async_read(const bT& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_read] = co_await asio::async_read(
@@ -329,7 +337,7 @@ class tcp_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    [[nodiscard]] awaitable<read_result_t> read(const bT&& buffer) {
+    [[nodiscard]] awaitable<read_result_t> async_read(const bT&& buffer) {
         // if no timeout, wait forever
         if (!timer_.pending()) {
             auto [err, bytes_read] = co_await asio::async_read(
@@ -363,7 +371,7 @@ class tcp_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    [[nodiscard]] awaitable<read_result_t> read_some(const bT& buffer) {
+    [[nodiscard]] awaitable<read_result_t> async_read_some(const bT& buffer) {
         auto [err, bytes_read] =
             co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
@@ -378,7 +386,7 @@ class tcp_connection {
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
-    [[nodiscard]] awaitable<read_result_t> read_some(const bT&& buffer) {
+    [[nodiscard]] awaitable<read_result_t> async_read_some(const bT&& buffer) {
         auto [err, bytes_read] =
             co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
