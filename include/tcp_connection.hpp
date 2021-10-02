@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "client_state.hpp"
+#include "condition_variable.hpp"
 #include "error.hpp"
 #include "timer.hpp"
 #include "types.hpp"
@@ -26,6 +27,7 @@ class tcp_connection {
         , timer_(exec)
         , host_()
         , port_(0)
+        , state_cv_(exec)
         , state_(client_connection_state::disconnected)
         , state_change_handler_() {}
 
@@ -34,6 +36,7 @@ class tcp_connection {
         , timer_(exec)
         , host_(host)
         , port_(port)
+        , state_cv_(exec)
         , state_(client_connection_state::disconnected)
         , state_change_handler_() {}
 
@@ -122,6 +125,16 @@ class tcp_connection {
      * the connection
      */
     client_connection_state state() const { return state_; }
+
+    /**
+     * @brief Waits until the connection state is state
+     *
+     * @param state The state that this function will block until the states are
+     * equal
+     */
+    awaitable<void> wait_for(client_connection_state state) {
+        co_await state_cv_.async_wait([&]() { return state_ == state; });
+    }
 
     /**
      * @brief Sets the amount of time before a blocking call will return.
@@ -398,6 +411,8 @@ class tcp_connection {
         }
 
         state_ = state;
+        state_cv_.notify_all();
+
         if (state_change_handler_) {
             auto executor = timer_.get_executor();
             co_spawn(executor, bind(state_change_handler_, state_), detached);
@@ -410,6 +425,7 @@ class tcp_connection {
     tcp::endpoint endpoint_;
     std::string host_;
     uint16_t port_;
+    condition_variable state_cv_;
     client_connection_state state_;
     connection_state_change_handler state_change_handler_;
 };
