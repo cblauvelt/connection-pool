@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "client_state.hpp"
+#include "condition_variable.hpp"
 #include "error.hpp"
 #include "timer.hpp"
 #include "types.hpp"
@@ -35,6 +36,7 @@ class ssl_connection {
         , host_()
         , port_(0)
         , ssl_options_(default_ssl_options)
+        , state_cv_(exec)
         , state_(client_connection_state::disconnected)
         , state_change_handler_() {}
 
@@ -46,6 +48,7 @@ class ssl_connection {
         , host_(host)
         , port_(port)
         , ssl_options_(options)
+        , state_cv_(exec)
         , state_(client_connection_state::disconnected)
         , state_change_handler_() {}
 
@@ -132,6 +135,16 @@ class ssl_connection {
      * the connection
      */
     client_connection_state state() const { return state_; }
+
+    /**
+     * @brief Waits until the connection state is state
+     *
+     * @param state The state that this function will block until the states are
+     * equal
+     */
+    awaitable<void> wait_for(client_connection_state state) {
+        co_await state_cv_.async_wait([&]() { return state_ == state; });
+    }
 
     /**
      * @brief Sets the amount of time before a blocking call will return.
@@ -336,6 +349,7 @@ class ssl_connection {
     std::string host_;
     uint16_t port_;
     ssl_options ssl_options_;
+    condition_variable state_cv_;
     client_connection_state state_;
     connection_state_change_handler state_change_handler_;
 };
