@@ -19,7 +19,7 @@ jobs:
     - name: build
       run: cmake --build .
     - name: test
-      run: ctest -C Release -T test --output-on-failure --timeout 10
+      run: ctest -C Release -T test --output-on-failure --timeout 10 --test-dir build/
     - name: conan create
       run: conan create .
       

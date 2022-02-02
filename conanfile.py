@@ -20,7 +20,7 @@ class CPoolConan(ConanFile):
     exports_sources = ["CMakeLists.txt", "conan.cmake", "conanfile.py", "include/*", "test/*"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
-    requires = "boost/1.77.0", "openssl/1.1.1l", "fmt/8.0.1"
+    requires = "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
     build_requires = "gtest/cci.20210126"
     options = {"cxx_standard": [20], "build_testing": [True, False]}
     default_options = {"cxx_standard": 20, "build_testing": True}

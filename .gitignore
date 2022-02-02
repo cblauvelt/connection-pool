@@ -1,5 +1,6 @@
 # Build directory
 build/**
+.vscode/settings.json
 
 # Prerequisites
 *.d
@@ -33,3 +34,6 @@ build/**
 *.exe
 *.out
 *.app
+
+# Testing
+Testing/

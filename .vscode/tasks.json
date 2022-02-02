@@ -10,9 +10,15 @@
             "problemMatcher": []
         },
         {
-            "label": "CMake Configure",
+            "label": "CMake Configure Debug",
             "type": "shell",
-            "command": "cd build && cmake .. -GNinja",
+            "command": "cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -GNinja",
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake Configure Release",
+            "type": "shell",
+            "command": "cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -GNinja",
             "problemMatcher": []
         },
         {
@@ -24,6 +30,12 @@
                 "kind": "build",
                 "isDefault": true
             }
+        },
+        {
+            "label": "CTest",
+            "type": "shell",
+            "command": "ctest -C Release -T test --output-on-failure --timeout 10 --test-dir build/",
+            "problemMatcher": [],
         },
         {
             "label": "Clear Build",
