@@ -16,7 +16,8 @@
 		"ms-vscode.cpptools-extension-pack",
 		"ms-vsliveshare.vsliveshare",
 		"notskm.clang-tidy",
-		"cschlosser.doxdocgen"
+		"cschlosser.doxdocgen",
+		"matepek.vscode-catch2-test-adapter"
 	],
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
