@@ -38,7 +38,8 @@ class ssl_connection {
         , ssl_options_(default_ssl_options)
         , state_cv_(exec)
         , state_(client_connection_state::disconnected)
-        , state_change_handler_() {}
+        , state_change_handler_()
+        , error_condition_() {}
 
     ssl_connection(net::any_io_executor exec, ssl::context& ssl_ctx,
                    std::string host, uint16_t port,
@@ -50,7 +51,8 @@ class ssl_connection {
         , ssl_options_(options)
         , state_cv_(exec)
         , state_(client_connection_state::disconnected)
-        , state_change_handler_() {}
+        , state_change_handler_()
+        , error_condition_() {}
 
     ssl_connection(const ssl_connection&) = delete;
     ssl_connection& operator=(const ssl_connection&) = delete;
@@ -174,9 +176,18 @@ class ssl_connection {
      * changes state as defined by ConnectionState.
      * @param handler The function oject to call.
      */
-    void set_state_change_handler(connection_state_change_handler handler) {
+    void set_state_change_handler(
+        connection_state_change_handler<ssl_connection> handler) {
         state_change_handler_ = std::move(handler);
     }
+
+    /**
+     * @brief error_condition If a set_state_change_handler returns an error
+     * condition, error_condition will be an error.
+     * @returns The most recent error.
+     *
+     */
+    error error_condition() const { return error_condition_; }
 
     /**
      * @returns How many bytes can be read without blocking.
@@ -199,7 +210,7 @@ class ssl_connection {
                 fmt::format("Host or port have not been set"));
         }
 
-        set_state(client_connection_state::resolving);
+        co_await set_state(client_connection_state::resolving);
 
         tcp::resolver resolver(stream_.get_executor());
         auto [err, endpoints] = co_await resolver.async_resolve(
@@ -211,7 +222,7 @@ class ssl_connection {
                                  err.message()));
         }
 
-        set_state(client_connection_state::connecting);
+        co_await set_state(client_connection_state::connecting);
 
         // Set SNI Hostname (many hosts need this to handshake successfully)
         if (ssl_options_.sni &&
@@ -225,7 +236,7 @@ class ssl_connection {
         std::tie(err, endpoint_) = co_await asio::async_connect(
             stream_.lowest_layer(), endpoints, as_tuple(use_awaitable));
         if (err) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
             co_return cpool::error(
                 err, fmt::format("Could not connect to host {0}; {1}", host_,
                                  err.message()));
@@ -237,7 +248,7 @@ class ssl_connection {
         co_await stream_.async_handshake(ssl::stream_base::client,
                                          use_awaitable);
 
-        set_state(client_connection_state::connected);
+        co_await set_state(client_connection_state::connected);
 
         co_return cpool::no_error;
     }
@@ -253,7 +264,7 @@ class ssl_connection {
             co_return error(boost::asio::error::not_connected, "not connected");
         }
 
-        set_state(client_connection_state::disconnecting);
+        co_await set_state(client_connection_state::disconnecting);
         stream_.shutdown(err);
         if (err == asio::error::eof) {
             // Rationale:
@@ -261,7 +272,7 @@ class ssl_connection {
             err = {};
         }
 
-        set_state(client_connection_state::disconnected);
+        co_await set_state(client_connection_state::disconnected);
 
         co_return err;
     }
@@ -294,7 +305,7 @@ class ssl_connection {
         auto [err, bytes_read] =
             std::get<detail::asio_write_result_t>(response);
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
@@ -309,7 +320,7 @@ class ssl_connection {
         auto [err, bytes_read] =
             co_await stream_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
@@ -324,22 +335,25 @@ class ssl_connection {
         auto [err, bytes_read] =
             co_await stream_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
   private:
-    void set_state(client_connection_state state) {
+    [[nodiscard]] awaitable<void> set_state(client_connection_state state) {
         if (state_ == state) {
-            return;
+            co_return;
         }
 
         state_ = state;
+
         if (state_change_handler_) {
-            auto executor = timer_.get_executor();
-            co_spawn(executor, bind(state_change_handler_, state_), detached);
+            error_condition_ = co_await state_change_handler_(this, state_);
         }
+        state_cv_.notify_all();
+
+        co_return;
     }
 
   private:
@@ -351,7 +365,8 @@ class ssl_connection {
     ssl_options ssl_options_;
     condition_variable state_cv_;
     client_connection_state state_;
-    connection_state_change_handler state_change_handler_;
+    connection_state_change_handler<ssl_connection> state_change_handler_;
+    error error_condition_;
 };
 
 } // namespace cpool

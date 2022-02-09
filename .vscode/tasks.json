@@ -4,9 +4,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Conan Install",
+            "label": "Conan Create",
             "type": "shell",
-            "command": "cd build && conan install ..",
+            "command": "conan create .",
             "problemMatcher": []
         },
         {

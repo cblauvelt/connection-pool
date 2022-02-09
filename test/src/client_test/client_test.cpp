@@ -30,8 +30,9 @@ template <typename T> std::string bytes_to_string(const T& buffer) {
     return retVal.str();
 }
 
-awaitable<void>
-on_connection_state_change(const cpool::client_connection_state state) {
+awaitable<error>
+on_connection_state_change(const tcp_connection* conn,
+                           const cpool::client_connection_state state) {
     switch (state) {
     case cpool::client_connection_state::resolving:
         EXPECT_TRUE(true);
@@ -57,15 +58,14 @@ on_connection_state_change(const cpool::client_connection_state state) {
         EXPECT_TRUE(false);
     }
 
-    co_return;
+    co_return error();
 }
 
 awaitable<void> client_test(boost::asio::io_context& ctx,
                             bool last_task = false) {
     auto executor = co_await net::this_coro::executor;
     cpool::tcp_connection connection(executor, "localhost", port_number);
-    connection.set_state_change_handler(
-        std::bind(on_connection_state_change, std::placeholders::_1));
+    connection.set_state_change_handler(on_connection_state_change);
 
     auto error = co_await connection.async_connect();
     EXPECT_FALSE(error);
@@ -98,8 +98,7 @@ awaitable<void> client_test(boost::asio::io_context& ctx,
 awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
     auto executor = co_await net::this_coro::executor;
     cpool::tcp_connection connection(executor, "localhost", slow_port_number);
-    connection.set_state_change_handler(
-        std::bind(on_connection_state_change, std::placeholders::_1));
+    connection.set_state_change_handler(on_connection_state_change);
 
     auto error = co_await connection.async_connect();
     EXPECT_FALSE(error);

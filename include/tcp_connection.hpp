@@ -29,7 +29,8 @@ class tcp_connection {
         , port_(0)
         , state_cv_(exec)
         , state_(client_connection_state::disconnected)
-        , state_change_handler_() {}
+        , state_change_handler_()
+        , error_condition_() {}
 
     tcp_connection(net::any_io_executor exec, std::string host, uint16_t port)
         : socket_(exec)
@@ -38,7 +39,8 @@ class tcp_connection {
         , port_(port)
         , state_cv_(exec)
         , state_(client_connection_state::disconnected)
-        , state_change_handler_() {}
+        , state_change_handler_()
+        , error_condition_() {}
 
     tcp_connection(const tcp_connection&) = delete;
     tcp_connection& operator=(const tcp_connection&) = delete;
@@ -164,9 +166,18 @@ class tcp_connection {
      * changes state as defined by ConnectionState.
      * @param handler The function oject to call.
      */
-    void set_state_change_handler(connection_state_change_handler handler) {
+    void set_state_change_handler(
+        connection_state_change_handler<tcp_connection> handler) {
         state_change_handler_ = std::move(handler);
     }
+
+    /**
+     * @brief error_condition If a set_state_change_handler returns an error
+     * condition, error_condition will be an error.
+     * @returns The most recent error.
+     *
+     */
+    error error_condition() const { return error_condition_; }
 
     /**
      * @returns How many bytes can be read without blocking.
@@ -178,8 +189,8 @@ class tcp_connection {
     }
 
     /**
-     * @brief Make a non-blocking call to resolve the remote endpoint given by
-     * host and connect to the remote endpoint
+     * @brief Make a non-blocking call to resolve the remote endpoint given
+     * by host and connect to the remote endpoint
      */
     [[nodiscard]] awaitable<cpool::error> async_connect() {
         if (host_.empty() || port_ == 0) {
@@ -188,7 +199,7 @@ class tcp_connection {
                 fmt::format("Host or port have not been set"));
         }
 
-        set_state(client_connection_state::resolving);
+        co_await set_state(client_connection_state::resolving);
 
         tcp::resolver resolver(socket_.get_executor());
         auto [err, endpoints] = co_await resolver.async_resolve(
@@ -200,24 +211,24 @@ class tcp_connection {
                                  err.message()));
         }
 
-        set_state(client_connection_state::connecting);
+        co_await set_state(client_connection_state::connecting);
         std::tie(err, endpoint_) = co_await asio::async_connect(
             socket_, endpoints, as_tuple(use_awaitable));
         if (err) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
             co_return cpool::error(
                 err, fmt::format("Could not connect to host {0}; {1}", host_,
                                  err.message()));
         } else {
-            set_state(client_connection_state::connected);
+            co_await set_state(client_connection_state::connected);
         }
 
         co_return cpool::no_error;
     }
 
     /**
-     * @brief Disconnects the tcp_connection object making it no longer able to
-     * interact with the remote endpoint.
+     * @brief Disconnects the tcp_connection object making it no longer able
+     * to interact with the remote endpoint.
      */
     [[nodiscard]] awaitable<error> async_disconnect() {
         boost::system::error_code err;
@@ -226,10 +237,10 @@ class tcp_connection {
             co_return error(net::error::not_connected, "not connected");
         }
 
-        set_state(client_connection_state::disconnecting);
+        co_await set_state(client_connection_state::disconnecting);
         socket_.shutdown(tcp::socket::shutdown_both, err);
         socket_.close(err);
-        set_state(client_connection_state::disconnected);
+        co_await set_state(client_connection_state::disconnected);
 
         co_return err;
     }
@@ -237,8 +248,8 @@ class tcp_connection {
     /**
      * @brief Executes a write to the socket.
      * @param buffer The buffer that contains the data to be written.
-     * @returns write_result_t A tuple representing the error during writing and
-     * the number of bytes written.
+     * @returns write_result_t A tuple representing the error during writing
+     * and the number of bytes written.
      */
     template <typename bT>
     [[nodiscard]] awaitable<write_result_t> async_write(const bT& buffer) {
@@ -247,7 +258,7 @@ class tcp_connection {
             auto [err, bytes_written] = co_await asio::async_write(
                 socket_, buffer, as_tuple(use_awaitable));
             if (error_means_client_disconnected(err)) {
-                set_state(client_connection_state::disconnected);
+                co_await set_state(client_connection_state::disconnected);
             }
             co_return std::make_tuple(error(err), bytes_written);
         }
@@ -265,7 +276,7 @@ class tcp_connection {
         auto [err, bytes_read] =
             std::get<detail::asio_write_result_t>(response);
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
@@ -273,8 +284,8 @@ class tcp_connection {
     /**
      * @brief Executes a write to the socket.
      * @param buffer The buffer that contains the data to be written.
-     * @returns write_result_t A tuple representing the error during writing and
-     * the number of bytes written.
+     * @returns write_result_t A tuple representing the error during writing
+     * and the number of bytes written.
      */
     template <typename bT>
     [[nodiscard]] awaitable<write_result_t> async_write(const bT&& buffer) {
@@ -283,7 +294,7 @@ class tcp_connection {
             auto [err, bytes_written] = co_await asio::async_write(
                 socket_, buffer, as_tuple(use_awaitable));
             if (error_means_client_disconnected(err)) {
-                set_state(client_connection_state::disconnected);
+                co_await set_state(client_connection_state::disconnected);
             }
             co_return std::make_tuple(error(err), bytes_written);
         }
@@ -301,14 +312,14 @@ class tcp_connection {
         auto [err, bytes_read] =
             std::get<detail::asio_write_result_t>(response);
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
-     * @brief Executes a blocking read of the socket. This call will block until
-     * a number of bytes equal to buffer.size() has been read.
+     * @brief Executes a blocking read of the socket. This call will block
+     * until a number of bytes equal to buffer.size() has been read.
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
@@ -318,7 +329,7 @@ class tcp_connection {
             auto [err, bytes_read] = co_await asio::async_read(
                 socket_, buffer, as_tuple(use_awaitable));
             if (error_means_client_disconnected(err)) {
-                set_state(client_connection_state::disconnected);
+                co_await set_state(client_connection_state::disconnected);
             }
             co_return std::make_tuple(error(err), bytes_read);
         }
@@ -335,14 +346,14 @@ class tcp_connection {
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
-     * @brief Executes a blocking read of the socket. This call will block until
-     * a number of bytes equal to buffer.size() has been read.
+     * @brief Executes a blocking read of the socket. This call will block
+     * until a number of bytes equal to buffer.size() has been read.
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
@@ -352,7 +363,7 @@ class tcp_connection {
             auto [err, bytes_read] = co_await asio::async_read(
                 socket_, buffer, as_tuple(use_awaitable));
             if (error_means_client_disconnected(err)) {
-                set_state(client_connection_state::disconnected);
+                co_await set_state(client_connection_state::disconnected);
             }
             co_return std::make_tuple(error(err), bytes_read);
         }
@@ -369,14 +380,15 @@ class tcp_connection {
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
-     * @brief Executes a nonblocking read of the socket. This call will read all
-     * available bytes but may return with fewer bytes than buffer.size().
+     * @brief Executes a nonblocking read of the socket. This call will read
+     * all available bytes but may return with fewer bytes than
+     * buffer.size().
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
@@ -384,14 +396,15 @@ class tcp_connection {
         auto [err, bytes_read] =
             co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
     /**
-     * @brief Executes a nonblocking read of the socket. This call will read all
-     * available bytes but may return with fewer bytes than buffer.size().
+     * @brief Executes a nonblocking read of the socket. This call will read
+     * all available bytes but may return with fewer bytes than
+     * buffer.size().
      * @param buffer The buffer that will contain the result of the read.
      */
     template <typename bT>
@@ -399,24 +412,26 @@ class tcp_connection {
         auto [err, bytes_read] =
             co_await socket_.async_read_some(buffer, as_tuple(use_awaitable));
         if (error_means_client_disconnected(err)) {
-            set_state(client_connection_state::disconnected);
+            co_await set_state(client_connection_state::disconnected);
         }
         co_return std::make_tuple(error(err), bytes_read);
     }
 
   private:
-    void set_state(client_connection_state state) {
+    [[nodiscard]] awaitable<void> set_state(client_connection_state state) {
         if (state_ == state) {
-            return;
+            co_return;
         }
 
         state_ = state;
-        state_cv_.notify_all();
 
         if (state_change_handler_) {
-            auto executor = timer_.get_executor();
-            co_spawn(executor, bind(state_change_handler_, state_), detached);
+            error_condition_ = co_await state_change_handler_(this, state_);
         }
+
+        state_cv_.notify_all();
+
+        co_return;
     }
 
   private:
@@ -427,7 +442,8 @@ class tcp_connection {
     uint16_t port_;
     condition_variable state_cv_;
     client_connection_state state_;
-    connection_state_change_handler state_change_handler_;
+    connection_state_change_handler<tcp_connection> state_change_handler_;
+    error error_condition_;
 };
 
 } // namespace cpool
