@@ -63,8 +63,9 @@ using write_result_t = std::tuple<cpool::error, std::size_t>;
  * @param state The new state of the object as defined by the enum
  * sio::network::ConnectionState.
  */
-using connection_state_change_handler =
-    std::function<awaitable<void>(const client_connection_state state)>;
+template <class T>
+using connection_state_change_handler = std::function<awaitable<error>(
+    T* conn, const client_connection_state state)>;
 
 namespace detail {
 /**

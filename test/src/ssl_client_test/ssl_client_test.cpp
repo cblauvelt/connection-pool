@@ -17,6 +17,7 @@ namespace {
 using std::cout;
 using std::endl;
 using namespace std::chrono_literals;
+using namespace cpool;
 
 constexpr uint16_t port_number = 55558;
 constexpr uint16_t slow_port_number = port_number + 1;
@@ -31,8 +32,9 @@ template <typename T> std::string bytes_to_string(const T& buffer) {
     return retVal.str();
 }
 
-awaitable<void>
-on_connection_state_change(const cpool::client_connection_state state) {
+awaitable<error>
+on_connection_state_change(const cpool::ssl_connection* conn,
+                           const cpool::client_connection_state state) {
     switch (state) {
     case cpool::client_connection_state::resolving:
         EXPECT_TRUE(true);
@@ -58,7 +60,7 @@ on_connection_state_change(const cpool::client_connection_state state) {
         EXPECT_TRUE(false);
     }
 
-    co_return;
+    co_return error();
 }
 
 awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
@@ -66,8 +68,7 @@ awaitable<void> client_test(boost::asio::io_context& ctx, ssl::context& ssl_ctx,
     auto exec = co_await cpool::net::this_coro::executor;
     cpool::ssl_connection connection(exec, ssl_ctx, "google.com", 443,
                                      cpool::ssl_options{.sni = true});
-    connection.set_state_change_handler(
-        std::bind(on_connection_state_change, std::placeholders::_1));
+    connection.set_state_change_handler(on_connection_state_change);
 
     auto error = co_await connection.async_connect();
     EXPECT_FALSE(error) << error.message();
