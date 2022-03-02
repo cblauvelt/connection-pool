@@ -8,6 +8,39 @@ set(CMAKE_CXX_STANDARD 20)
 include(CheckCXXCompilerFlag)
 include(conan.cmake)
 
+# include source directories
+include_directories(
+    "${CMAKE_SOURCE_DIR}/include"
+)
+
+check_cxx_compiler_flag(-std=c++20 HAVE_FLAG_STD_CXX20)
+
+if(HAVE_FLAG_STD_CXX20)
+
+    set( THREAD_CXX_FLAGS "-pthread")
+    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        # set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines-ts")
+        message(FATAL_ERROR "Clang coroutines is not supported in asio. Please add support")
+    endif()
+
+    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${THREAD_CXX_FLAGS}" )
+
+    if(NOT CMAKE_INSTALL_INCLUDEDIR)
+        set( CMAKE_INSTALL_INCLUDEDIR "/usr/include" )
+    endif()
+
+    if(NOT CMAKE_INSTALL_LIBDIR)
+        set( CMAKE_INSTALL_LIBDIR "/usr/lib" )
+    endif()
+
+else()
+    message(FATAL_ERROR "This library requires C++20")
+endif()
+
 # integrate conan build process
 if(NOT EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     conan_cmake_run(CONANFILE conanfile.py
@@ -23,33 +56,6 @@ if(EXISTS ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
     conan_basic_setup()
 else()
     message(FATAL_ERROR "The file conanbuildinfo.cmake could not be generated")
-endif()
-
-# include source directories
-include_directories(
-    "${CMAKE_SOURCE_DIR}/include"
-)
-
-check_cxx_compiler_flag(-std=c++20 HAVE_FLAG_STD_CXX20)
-
-if(HAVE_FLAG_STD_CXX20)
-
-    set( THREAD_CXX_FLAGS "-pthread")
-
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines -std=c++20")
-
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${THREAD_CXX_FLAGS}" )
-
-    if(NOT CMAKE_INSTALL_INCLUDEDIR)
-        set( CMAKE_INSTALL_INCLUDEDIR "/usr/include" )
-    endif()
-
-    if(NOT CMAKE_INSTALL_LIBDIR)
-        set( CMAKE_INSTALL_LIBDIR "/usr/lib" )
-    endif()
-
-else()
-    message(FATAL_ERROR "This library requires C++20")
 endif()
 
 

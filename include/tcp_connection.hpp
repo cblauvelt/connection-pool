@@ -144,6 +144,10 @@ class tcp_connection {
      */
     void expires_after(milliseconds ms) { timer_.expires_after(ms); }
 
+    /**
+     * @brief Resets the time and cancels all tasks waiting on the timer.
+     *
+     */
     void expires_never() { timer_.expires_never(); }
 
     /**
