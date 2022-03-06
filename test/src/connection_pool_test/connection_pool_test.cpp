@@ -7,6 +7,7 @@
 #include "connection_pool.hpp"
 #include "core/echo_server.hpp"
 #include "core/test_connection.hpp"
+#include "core/thread_pool.hpp"
 #include "tcp_connection.hpp"
 
 namespace {
@@ -14,8 +15,12 @@ namespace {
 using namespace std::chrono;
 using namespace std::chrono_literals;
 using namespace cpool;
+using std::cout;
+using std::endl;
 
-constexpr uint16_t port_number = 55557;
+constexpr uint16_t port_number = 55560;
+constexpr uint16_t stop_port_number = port_number + 1;
+constexpr uint16_t multi_stop_port_number = stop_port_number + 1;
 constexpr int num_connections = 4;
 
 template <typename T> std::string bytes_to_string(const T& buffer) {
@@ -189,6 +194,94 @@ awaitable<void> echo_connection_test(asio::io_context& ctx) {
     ctx.stop();
 }
 
+awaitable<void>
+bounce_data_until_stopped(connection_pool<tcp_connection>& pool) {
+    auto connection = co_await pool.get_connection();
+
+    if (connection == nullptr) {
+        EXPECT_TRUE(pool.stopped());
+        co_return;
+    }
+
+    std::string message = "Test message";
+
+    for (;;) {
+        auto [err, bytes] =
+            co_await connection->async_write(net::buffer(message));
+        if (err) {
+            EXPECT_EQ(err.error_code(), net::error::operation_aborted);
+            EXPECT_TRUE(pool.stopped());
+            co_return;
+        }
+
+        EXPECT_EQ(bytes, message.length());
+
+        std::vector<std::uint8_t> buf(256);
+        std::tie(err, bytes) =
+            co_await connection->async_read_some(net::buffer(buf));
+        if (err) {
+            // cout << err << endl;
+            EXPECT_EQ(err.error_code(), net::error::operation_aborted);
+            EXPECT_TRUE(pool.stopped());
+            co_return;
+        }
+
+        EXPECT_EQ(bytes, message.length());
+
+        auto bufferMessage = bytes_to_string(buf | std::views::take(bytes));
+        EXPECT_EQ(bufferMessage, message);
+    }
+
+    co_return;
+}
+
+awaitable<void> stop_echo_connection_test(asio::io_context& ctx) {
+    auto executor = co_await net::this_coro::executor;
+    auto connection_creator = [&]() -> std::unique_ptr<tcp_connection> {
+        return std::make_unique<tcp_connection>(executor, "localhost",
+                                                stop_port_number);
+    };
+
+    auto pool = connection_pool<tcp_connection>(executor, connection_creator,
+                                                num_connections);
+
+    co_spawn(ctx, bounce_data_until_stopped(std::ref(pool)), detached);
+
+    cpool::timer timer(executor);
+    co_await timer.async_wait(100ms);
+    co_await pool.stop();
+    co_await timer.async_wait(10ms);
+
+    ctx.stop();
+}
+
+awaitable<void> multi_stop_echo_connection_test(asio::io_context& ctx,
+                                                uint num_threads) {
+    std::vector<std::jthread> threads;
+    auto executor = co_await net::this_coro::executor;
+    auto connection_creator = [&]() -> std::unique_ptr<tcp_connection> {
+        return std::make_unique<tcp_connection>(executor, "localhost",
+                                                multi_stop_port_number);
+    };
+
+    auto pool = connection_pool<tcp_connection>(executor, connection_creator,
+                                                num_connections);
+
+    for (int i = 0; i < num_threads; i++) {
+        co_spawn(ctx, bounce_data_until_stopped(std::ref(pool)), detached);
+    }
+    start_thread_pool(threads, num_threads, [&]() { ctx.run(); });
+
+    cpool::timer timer(executor);
+    co_await timer.async_wait(100ms);
+    co_await pool.stop();
+    // co_await timer.async_wait(10ms);
+
+    ctx.stop();
+
+    stop_thread_pool(threads);
+}
+
 TEST(ConnectionPool, MockTest) {
     asio::io_context ctx(1);
 
@@ -219,6 +312,28 @@ TEST(ConnectionPool, EchoTest) {
     co_spawn(ctx, echo_listener(port_number), detached);
 
     co_spawn(ctx, echo_connection_test(std::ref(ctx)), detached);
+
+    ctx.run();
+}
+
+TEST(ConnectionPool, StopEchoTest) {
+    asio::io_context ctx(1);
+
+    co_spawn(ctx, echo_listener(stop_port_number), detached);
+
+    co_spawn(ctx, stop_echo_connection_test(std::ref(ctx)), detached);
+
+    ctx.run();
+}
+
+TEST(ConnectionPool, MultiStopEchoTest) {
+    uint num_threads = 8;
+    asio::io_context ctx(num_threads);
+
+    co_spawn(ctx, echo_listener(multi_stop_port_number), detached);
+
+    co_spawn(ctx, multi_stop_echo_connection_test(std::ref(ctx), num_threads),
+             detached);
 
     ctx.run();
 }

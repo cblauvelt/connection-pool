@@ -421,6 +421,19 @@ class tcp_connection {
         co_return std::make_tuple(error(err), bytes_read);
     }
 
+    /**
+     * @brief Closes the stream and cancels all in flight operations
+     *
+     */
+    [[nodiscard]] awaitable<void> stop() {
+        co_await set_state(client_connection_state::disconnecting);
+        error_code ignored_err;
+        socket_.cancel(ignored_err);
+        co_await set_state(client_connection_state::disconnected);
+
+        co_return;
+    }
+
   private:
     [[nodiscard]] awaitable<void> set_state(client_connection_state state) {
         if (state_ == state) {

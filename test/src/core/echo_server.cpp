@@ -10,8 +10,10 @@ awaitable<boost::system::error_code> echo_once(tcp::socket& socket) {
         co_return ec;
     }
 
-    co_await async_write(socket, boost::asio::buffer(data, bytesRead),
-                         use_awaitable);
+    auto [write_err, bytes_written] = co_await async_write(
+        socket, boost::asio::buffer(data, bytesRead), as_tuple(use_awaitable));
+
+    co_return write_err;
 }
 
 awaitable<void> echo(tcp::socket socket) {
