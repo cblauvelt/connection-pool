@@ -26,12 +26,16 @@ template <class T> class connection_pool {
         : idle_connections_()
         , busy_connections_()
         , cv_(std::move(exec))
+        , stop_(false)
         , constructor_func_(constructor_func)
         , max_connections_(max_connections) {}
 
-    awaitable<T*> try_get_connection() {
-        T* connection = nullptr;
+    [[nodiscard]] awaitable<T*> try_get_connection() {
+        if (stopped()) {
+            co_return nullptr;
+        }
 
+        T* connection = nullptr;
         {
             std::lock_guard lock{mtx_};
 
@@ -85,11 +89,16 @@ template <class T> class connection_pool {
         co_return connection;
     }
 
-    awaitable<T*> get_connection() {
+    [[nodiscard]] awaitable<T*> get_connection() {
         T* connection = co_await try_get_connection();
         while (connection == nullptr) {
             co_await cv_.async_wait(
-                [&]() { return size_busy() < max_connections_; });
+                [&]() { return size_busy() < max_connections_ && !stopped(); });
+
+            if (stopped()) {
+                co_return nullptr;
+            }
+
             connection = co_await try_get_connection();
         }
 
@@ -149,6 +158,29 @@ template <class T> class connection_pool {
         return;
     }
 
+    [[nodiscard]] awaitable<void> stop() {
+        std::lock_guard<std::mutex> guard{mtx_};
+        // prevent new connections from being made
+        stop_ = true;
+        max_connections_ = 0;
+
+        // stop used connections
+        // don't clear them, the user still has a raw pointer and this can lead
+        // to unexpected crashes, connections will be destroyed with the pool
+        // object
+        for (auto& conn_pair : busy_connections_) {
+            co_await conn_pair.second->stop();
+        }
+
+        // clear idle connections, sockets are closed in dtor
+        idle_connections_.clear();
+
+        // wake up all coroutines waiting for a connection
+        cv_.notify_all();
+
+        co_return;
+    }
+
     size_t size() const {
         std::lock_guard<std::mutex> guard{mtx_};
         return idle_connections_.size() + busy_connections_.size();
@@ -166,6 +198,8 @@ template <class T> class connection_pool {
 
     size_t max_size() const { return max_connections_; }
 
+    bool stopped() const { return (bool)stop_; }
+
   private:
     static const int default_max_connections = 16;
 
@@ -173,6 +207,7 @@ template <class T> class connection_pool {
     std::unordered_map<T*, std::unique_ptr<T>> idle_connections_;
     std::unordered_map<T*, std::unique_ptr<T>> busy_connections_;
     condition_variable cv_;
+    std::atomic_bool stop_;
 
     std::function<std::unique_ptr<T>(void)> constructor_func_;
     size_t max_connections_;

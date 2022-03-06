@@ -8,7 +8,8 @@ class timer {
 
   public:
     timer(net::any_io_executor exec)
-        : timer_(std::move(exec)) {}
+        : timer_(std::move(exec))
+        , pending_(false) {}
 
     net::any_io_executor get_executor() { return timer_.get_executor(); }
 

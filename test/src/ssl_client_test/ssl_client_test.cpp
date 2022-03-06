@@ -19,7 +19,7 @@ using std::endl;
 using namespace std::chrono_literals;
 using namespace cpool;
 
-constexpr uint16_t port_number = 55558;
+constexpr uint16_t port_number = 55570;
 constexpr uint16_t slow_port_number = port_number + 1;
 constexpr int num_tests = 10;
 
