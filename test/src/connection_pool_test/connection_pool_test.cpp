@@ -282,7 +282,7 @@ awaitable<void> multi_stop_echo_connection_test(asio::io_context& ctx,
     stop_thread_pool(threads);
 }
 
-TEST(ConnectionPool, MockTest) {
+TEST(ConnectionPoolTest, Mock) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, mock_connection_test(std::ref(ctx)), detached);
@@ -290,7 +290,7 @@ TEST(ConnectionPool, MockTest) {
     ctx.run();
 }
 
-TEST(ConnectionPool, TooManyTryConnections) {
+TEST(ConnectionPoolTest, TooManyTryConnections) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, too_many_try_connections_test(std::ref(ctx)), detached);
@@ -298,7 +298,7 @@ TEST(ConnectionPool, TooManyTryConnections) {
     ctx.run();
 }
 
-TEST(ConnectionPool, TooManyConnections) {
+TEST(ConnectionPoolTest, TooManyConnections) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, too_many_connections_test(std::ref(ctx)), detached);
@@ -306,7 +306,7 @@ TEST(ConnectionPool, TooManyConnections) {
     ctx.run();
 }
 
-TEST(ConnectionPool, EchoTest) {
+TEST(EchoTest, SingleEcho) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, echo_listener(port_number), detached);
@@ -316,7 +316,7 @@ TEST(ConnectionPool, EchoTest) {
     ctx.run();
 }
 
-TEST(ConnectionPool, StopEchoTest) {
+TEST(EchoTest, Stop) {
     asio::io_context ctx(1);
 
     co_spawn(ctx, echo_listener(stop_port_number), detached);
@@ -326,7 +326,7 @@ TEST(ConnectionPool, StopEchoTest) {
     ctx.run();
 }
 
-TEST(ConnectionPool, MultiStopEchoTest) {
+TEST(EchoTest, MultiStop) {
     uint num_threads = 8;
     asio::io_context ctx(num_threads);
 

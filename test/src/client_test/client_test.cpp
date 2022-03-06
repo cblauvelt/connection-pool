@@ -127,7 +127,7 @@ awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
     ctx.stop();
 }
 
-TEST(TCP_Client, EchoTest) {
+TEST(TCP_Client, Echo) {
     boost::asio::io_context io_context(1);
 
     boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
@@ -146,11 +146,11 @@ TEST(TCP_Client, EchoTest) {
     io_context.run();
 }
 
-TEST(TCP_Client, TimeoutTest) {
+TEST(TCP_Client, Timeout) {
     boost::asio::io_context io_context(1);
 
-    boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
-    signals.async_wait([&](auto, auto) { io_context.stop(); });
+    // boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
+    // signals.async_wait([&](auto, auto) { io_context.stop(); });
 
     co_spawn(io_context, slow_echo_listener(slow_port_number), detached);
 
