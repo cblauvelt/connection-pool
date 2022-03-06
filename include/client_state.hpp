@@ -47,7 +47,7 @@ enum class client_connection_state : uint8_t {
 
 inline bool
 error_means_client_disconnected(const boost::system::error_code& ec) {
-    if (ec == asio::error::broken_pipe ||
+    if (ec == asio::error::eof || ec == asio::error::broken_pipe ||
         ec == asio::error::connection_aborted ||
         ec == asio::error::connection_refused ||
         ec == asio::error::connection_reset ||
