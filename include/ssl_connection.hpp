@@ -11,7 +11,7 @@
 
 #include "client_state.hpp"
 #include "condition_variable.hpp"
-#include "error.hpp"
+
 #include "timer.hpp"
 #include "types.hpp"
 
@@ -97,7 +97,7 @@ class ssl_connection {
         }
 
         host_ = host;
-        return no_error;
+        return error();
     }
 
     /**
@@ -122,7 +122,7 @@ class ssl_connection {
         }
 
         port_ = port;
-        return no_error;
+        return error();
     }
 
     /**
@@ -206,7 +206,8 @@ class ssl_connection {
     [[nodiscard]] awaitable<cpool::error> async_connect() {
         if (host_.empty() || port_ == 0) {
             co_return cpool::error(
-                boost::asio::error::operation_aborted,
+                asio::error::make_error_code(
+                    boost::asio::error::operation_aborted),
                 fmt::format("Host or port have not been set"));
         }
 
@@ -250,7 +251,7 @@ class ssl_connection {
 
         co_await set_state(client_connection_state::connected);
 
-        co_return cpool::no_error;
+        co_return cpool::error();
     }
 
     /**
@@ -261,7 +262,8 @@ class ssl_connection {
         boost::system::error_code err;
 
         if (!stream_.lowest_layer().is_open()) {
-            co_return error(boost::asio::error::not_connected, "not connected");
+            co_return error(asio::error::make_error_code(
+                boost::asio::error::not_connected));
         }
 
         co_await set_state(client_connection_state::disconnecting);

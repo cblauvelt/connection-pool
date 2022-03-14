@@ -11,7 +11,7 @@
 
 #include "client_state.hpp"
 #include "condition_variable.hpp"
-#include "error.hpp"
+
 #include "timer.hpp"
 #include "types.hpp"
 
@@ -87,7 +87,7 @@ class tcp_connection {
         }
 
         host_ = host;
-        return no_error;
+        return error();
     }
 
     /**
@@ -112,7 +112,7 @@ class tcp_connection {
         }
 
         port_ = port;
-        return no_error;
+        return error();
     }
 
     /**
@@ -199,8 +199,8 @@ class tcp_connection {
     [[nodiscard]] awaitable<cpool::error> async_connect() {
         if (host_.empty() || port_ == 0) {
             co_return cpool::error(
-                net::error::operation_aborted,
-                fmt::format("Host or port have not been set"));
+                asio::error::make_error_code(net::error::operation_aborted),
+                "Host or port have not been set");
         }
 
         co_await set_state(client_connection_state::resolving);
@@ -227,7 +227,7 @@ class tcp_connection {
             co_await set_state(client_connection_state::connected);
         }
 
-        co_return cpool::no_error;
+        co_return cpool::error();
     }
 
     /**
@@ -238,7 +238,8 @@ class tcp_connection {
         boost::system::error_code err;
 
         if (!socket_.is_open()) {
-            co_return error(net::error::not_connected, "not connected");
+            co_return error(
+                asio::error::make_error_code(net::error::not_connected));
         }
 
         co_await set_state(client_connection_state::disconnecting);
@@ -264,7 +265,7 @@ class tcp_connection {
             if (error_means_client_disconnected(err)) {
                 co_await set_state(client_connection_state::disconnected);
             }
-            co_return std::make_tuple(error(err), bytes_written);
+            co_return std::make_tuple(err, bytes_written);
         }
 
         std::variant<detail::asio_write_result_t, std::monostate> response =
@@ -274,7 +275,7 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)net::error::timed_out, "timed out"), 0);
+                error(asio::error::make_error_code(net::error::timed_out)), 0);
         }
 
         auto [err, bytes_read] =
@@ -282,7 +283,7 @@ class tcp_connection {
         if (error_means_client_disconnected(err)) {
             co_await set_state(client_connection_state::disconnected);
         }
-        co_return std::make_tuple(error(err), bytes_read);
+        co_return std::make_tuple(err, bytes_read);
     }
 
     /**
@@ -300,7 +301,7 @@ class tcp_connection {
             if (error_means_client_disconnected(err)) {
                 co_await set_state(client_connection_state::disconnected);
             }
-            co_return std::make_tuple(error(err), bytes_written);
+            co_return std::make_tuple(err, bytes_written);
         }
 
         std::variant<detail::asio_write_result_t, std::monostate> response =
@@ -310,7 +311,7 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)net::error::timed_out, "timed out"), 0);
+                error(asio::error::make_error_code(net::error::timed_out)), 0);
         }
 
         auto [err, bytes_read] =
@@ -318,7 +319,7 @@ class tcp_connection {
         if (error_means_client_disconnected(err)) {
             co_await set_state(client_connection_state::disconnected);
         }
-        co_return std::make_tuple(error(err), bytes_read);
+        co_return std::make_tuple(err, bytes_read);
     }
 
     /**
@@ -335,7 +336,7 @@ class tcp_connection {
             if (error_means_client_disconnected(err)) {
                 co_await set_state(client_connection_state::disconnected);
             }
-            co_return std::make_tuple(error(err), bytes_read);
+            co_return std::make_tuple(err, bytes_read);
         }
 
         std::variant<detail::asio_read_result_t, std::monostate> response =
@@ -345,14 +346,14 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)net::error::timed_out, "timed out"), 0);
+                error(asio::error::make_error_code(net::error::timed_out)), 0);
         }
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
         if (error_means_client_disconnected(err)) {
             co_await set_state(client_connection_state::disconnected);
         }
-        co_return std::make_tuple(error(err), bytes_read);
+        co_return std::make_tuple(err, bytes_read);
     }
 
     /**
@@ -369,7 +370,7 @@ class tcp_connection {
             if (error_means_client_disconnected(err)) {
                 co_await set_state(client_connection_state::disconnected);
             }
-            co_return std::make_tuple(error(err), bytes_read);
+            co_return std::make_tuple(err, bytes_read);
         }
 
         std::variant<detail::asio_read_result_t, std::monostate> response =
@@ -379,14 +380,14 @@ class tcp_connection {
 
         if (std::holds_alternative<std::monostate>(response)) {
             co_return std::make_tuple(
-                error((int)net::error::timed_out, "timed out"), 0);
+                error(asio::error::make_error_code(net::error::timed_out)), 0);
         }
 
         auto [err, bytes_read] = std::get<detail::asio_read_result_t>(response);
         if (error_means_client_disconnected(err)) {
             co_await set_state(client_connection_state::disconnected);
         }
-        co_return std::make_tuple(error(err), bytes_read);
+        co_return std::make_tuple(err, bytes_read);
     }
 
     /**
@@ -402,7 +403,7 @@ class tcp_connection {
         if (error_means_client_disconnected(err)) {
             co_await set_state(client_connection_state::disconnected);
         }
-        co_return std::make_tuple(error(err), bytes_read);
+        co_return std::make_tuple(err, bytes_read);
     }
 
     /**
@@ -418,7 +419,7 @@ class tcp_connection {
         if (error_means_client_disconnected(err)) {
             co_await set_state(client_connection_state::disconnected);
         }
-        co_return std::make_tuple(error(err), bytes_read);
+        co_return std::make_tuple(err, bytes_read);
     }
 
     /**

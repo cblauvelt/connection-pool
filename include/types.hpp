@@ -14,9 +14,10 @@
 #include <boost/asio/ssl.hpp>
 #include <boost/asio/write.hpp>
 
+#include <batteries/errors/error.hpp>
 #include <fmt/core.h>
 
-#include "error.hpp"
+
 
 namespace cpool {
 
@@ -25,6 +26,7 @@ namespace ssl = net::ssl;
 using namespace boost::asio::experimental::awaitable_operators;
 using namespace std::chrono_literals;
 
+using error = batteries::errors::error;
 using tcp = net::ip::tcp;
 using error_code = boost::system::error_code;
 using system_error = boost::system::system_error;

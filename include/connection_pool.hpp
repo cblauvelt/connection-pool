@@ -8,7 +8,7 @@
 
 #include "back_off.hpp"
 #include "condition_variable.hpp"
-#include "error.hpp"
+
 #include "timer.hpp"
 #include "types.hpp"
 
@@ -80,7 +80,7 @@ template <class T> class connection_pool {
 
                 // cout << "connection attempt " << attempts << endl;
                 auto error = co_await connection->async_connect();
-                if (error.error_code() == net::error::operation_aborted) {
+                if (error.value() == (int)net::error::operation_aborted) {
                     co_return nullptr;
                 }
             }

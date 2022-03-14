@@ -9,7 +9,6 @@
 #include <tuple>
 #include <vector>
 
-#include "error.hpp"
 #include "timer.hpp"
 #include "types.hpp"
 

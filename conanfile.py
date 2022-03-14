@@ -21,7 +21,7 @@ class CPoolConan(ConanFile):
                        "conanfile.py", "include/*", "test/*"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
-    requires = "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
+    requires = "batteries/main_e95e066d85a6", "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
     build_requires = "gtest/cci.20210126"
     options = {"cxx_standard": [20], "build_testing": [True, False]}
     default_options = {"cxx_standard": 20, "build_testing": True}
@@ -36,13 +36,16 @@ class CPoolConan(ConanFile):
            Version(self.settings.compiler.version.value) < "16":
             raise ConanInvalidConfiguration("CPool does not support MSVC < 16")
 
-    def sanitize_version(self, version):
+    def sanitize_tag(self, version):
         return re.sub(r'^v', '', version)
+
+    def sanitize_branch(self, branch):
+        return re.sub(r'/', '_', branch)
 
     def set_version(self):
         git = tools.Git(folder=self.recipe_folder)
-        self.version = self.sanitize_version(git.get_tag()) if git.get_tag(
-        ) else "%s_%s" % (git.get_branch(), git.get_revision()[:12])
+        self.version = self.sanitize_tag(git.get_tag()) if git.get_tag(
+        ) else "%s_%s" % (self.sanitize_branch(git.get_branch()), git.get_revision()[:12])
 
     def build(self):
         cmake = CMake(self)

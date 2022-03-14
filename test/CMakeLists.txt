@@ -6,13 +6,13 @@ include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 
-set(ERROR_TEST "error_test")
-add_executable(${ERROR_TEST}
-        "src/util_tests/error_test.cpp"
-)
-target_include_directories(${ERROR_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(${ERROR_TEST} ${CONAN_LIBS})
-add_test(NAME ${ERROR_TEST} COMMAND $<TARGET_FILE:${ERROR_TEST}>)
+# set(ERROR_TEST "error_test")
+# add_executable(${ERROR_TEST}
+#         "src/util_tests/error_test.cpp"
+# )
+# target_include_directories(${ERROR_TEST} PRIVATE ${CMAKE_SOURCE_DIR})
+# target_link_libraries(${ERROR_TEST} ${CONAN_LIBS})
+# add_test(NAME ${ERROR_TEST} COMMAND $<TARGET_FILE:${ERROR_TEST}>)
 
 set(BACK_OFF_TEST "back_off_test")
 add_executable(${BACK_OFF_TEST}
