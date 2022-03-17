@@ -11,7 +11,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: cblauvelt/cpp-builder-gcc10:latest
+    container: cblauvelt/cpp-builder-gcc10:1.0.5
     steps:
     - uses: actions/checkout@v2
     - name: Conan Install
