@@ -14,8 +14,8 @@ jobs:
     container: cblauvelt/cpp-builder-gcc10:latest
     steps:
     - uses: actions/checkout@v2
-    - name: conan install . -s compiler.cppstd=20 --build missing
-      run: cmake . -DCMAKE_BUILD_TYPE=Release -GNinja
+    - name: Conan Install
+      run: conan install . -s compiler.cppstd=20 --build missing
     - name: configure
       run: cmake . -DCMAKE_BUILD_TYPE=Release -GNinja
     - name: build
