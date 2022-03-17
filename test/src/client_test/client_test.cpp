@@ -5,7 +5,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "tcp_connection.hpp"
+#include "cpool/tcp_connection.hpp"
 
 #include "core/echo_server.hpp"
 #include "core/slow_echo_server.hpp"
@@ -118,7 +118,7 @@ awaitable<void> slow_client_test(boost::asio::io_context& ctx) {
         co_await connection.async_read(boost::asio::buffer(buf));
     connection.expires_never();
     EXPECT_TRUE(error);
-    EXPECT_EQ(error.error_code(), (int)boost::asio::error::timed_out);
+    EXPECT_EQ(error.value(), (int)boost::asio::error::timed_out);
     EXPECT_EQ(bytes, 0);
 
     error = co_await connection.async_disconnect();

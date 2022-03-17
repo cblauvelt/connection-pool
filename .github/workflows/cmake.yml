@@ -1,19 +1,21 @@
 name: C/C++ CI
 
 on:
-  push:
-    branches: [ main ]
-    # Publish semver tags as releases.
-    tags: ["v*.*.*"]
-  pull_request:
-    branches: [ main ]
+  # push:
+  #   branches: [ main ]
+  #   # Publish semver tags as releases.
+  #   tags: ["v*.*.*"]
+  # pull_request:
+  #   branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: cblauvelt/cpp-builder-gcc10:latest
+    container: cblauvelt/cpp-builder-gcc10:1.0.5
     steps:
     - uses: actions/checkout@v2
+    - name: Conan Install
+      run: conan install . -s compiler.cppstd=20 -s compiler.libcxx=libstdc++11 --build missing
     - name: configure
       run: cmake . -DCMAKE_BUILD_TYPE=Release -GNinja
     - name: build

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.hpp"
+#include "cpool/types.hpp"
 
 namespace cpool {
 

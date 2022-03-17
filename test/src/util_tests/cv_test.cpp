@@ -1,11 +1,11 @@
-#include "condition_variable.hpp"
+#include "cpool/condition_variable.hpp"
 
 #include <chrono>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "types.hpp"
+#include "cpool/types.hpp"
 
 namespace {
 

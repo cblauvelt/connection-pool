@@ -6,19 +6,7 @@
         {
             "label": "Conan Create",
             "type": "shell",
-            "command": "conan create .",
-            "problemMatcher": []
-        },
-        {
-            "label": "CMake Configure Debug",
-            "type": "shell",
-            "command": "cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -GNinja",
-            "problemMatcher": []
-        },
-        {
-            "label": "CMake Configure Release",
-            "type": "shell",
-            "command": "cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -GNinja",
+            "command": "conan create . --build missing",
             "problemMatcher": []
         },
         {

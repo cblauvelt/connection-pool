@@ -9,9 +9,8 @@
 #include <tuple>
 #include <vector>
 
-#include "error.hpp"
-#include "timer.hpp"
-#include "types.hpp"
+#include "cpool/timer.hpp"
+#include "cpool/types.hpp"
 
 class test_connection {
 

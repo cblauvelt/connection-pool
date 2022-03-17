@@ -10,7 +10,7 @@ include(conan.cmake)
 
 # include source directories
 include_directories(
-    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/"
 )
 
 check_cxx_compiler_flag(-std=c++20 HAVE_FLAG_STD_CXX20)
@@ -61,7 +61,7 @@ endif()
 
 # install headers
 install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cpool/"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/cpool"
 )
 

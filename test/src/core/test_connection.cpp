@@ -10,10 +10,10 @@ bool test_connection::connected() { return connected_; }
 
 cpool::awaitable<cpool::error> test_connection::async_connect() {
     connected_ = true;
-    co_return cpool::no_error;
+    co_return cpool::error();
 }
 
 cpool::awaitable<cpool::error> test_connection::async_disconnect() {
     connected_ = false;
-    co_return cpool::no_error;
+    co_return cpool::error();
 }

@@ -3,8 +3,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "timer.hpp"
-#include "types.hpp"
+#include "cpool/timer.hpp"
+#include "cpool/types.hpp"
 
 namespace {
 

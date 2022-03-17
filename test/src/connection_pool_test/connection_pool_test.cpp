@@ -4,11 +4,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "connection_pool.hpp"
 #include "core/echo_server.hpp"
 #include "core/test_connection.hpp"
 #include "core/thread_pool.hpp"
-#include "tcp_connection.hpp"
+#include "cpool/connection_pool.hpp"
+#include "cpool/tcp_connection.hpp"
 
 namespace {
 
@@ -209,7 +209,7 @@ bounce_data_until_stopped(connection_pool<tcp_connection>& pool) {
         auto [err, bytes] =
             co_await connection->async_write(net::buffer(message));
         if (err) {
-            EXPECT_EQ(err.error_code(), net::error::operation_aborted);
+            EXPECT_EQ(err.value(), (int)net::error::operation_aborted);
             EXPECT_TRUE(pool.stopped());
             co_return;
         }
@@ -221,7 +221,7 @@ bounce_data_until_stopped(connection_pool<tcp_connection>& pool) {
             co_await connection->async_read_some(net::buffer(buf));
         if (err) {
             // cout << err << endl;
-            EXPECT_EQ(err.error_code(), net::error::operation_aborted);
+            EXPECT_EQ(err.value(), (int)net::error::operation_aborted);
             EXPECT_TRUE(pool.stopped());
             co_return;
         }
