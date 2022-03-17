@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Conan Install
-      run: conan install . -s compiler.cppstd=20 --build missing
+      run: conan install . -s compiler.cppstd=20 -s compiler.libcxx=libstdc++11 --build missing
     - name: configure
       run: cmake . -DCMAKE_BUILD_TYPE=Release -GNinja
     - name: build
