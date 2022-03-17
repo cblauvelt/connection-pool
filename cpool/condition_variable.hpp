@@ -5,7 +5,7 @@
 
 #include <boost/asio.hpp>
 
-#include "types.hpp"
+#include "cpool/types.hpp"
 
 namespace cpool {
 

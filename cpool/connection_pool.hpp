@@ -9,8 +9,8 @@
 #include "back_off.hpp"
 #include "condition_variable.hpp"
 
-#include "timer.hpp"
-#include "types.hpp"
+#include "cpool/timer.hpp"
+#include "cpool/types.hpp"
 
 namespace cpool {
 

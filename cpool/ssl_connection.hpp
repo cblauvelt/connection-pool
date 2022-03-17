@@ -9,11 +9,10 @@
 #include <tuple>
 #include <vector>
 
-#include "client_state.hpp"
-#include "condition_variable.hpp"
-
-#include "timer.hpp"
-#include "types.hpp"
+#include "cpool/client_state.hpp"
+#include "cpool/condition_variable.hpp"
+#include "cpool/timer.hpp"
+#include "cpool/types.hpp"
 
 namespace cpool {
 

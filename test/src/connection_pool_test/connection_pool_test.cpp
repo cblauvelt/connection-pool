@@ -4,11 +4,11 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "connection_pool.hpp"
 #include "core/echo_server.hpp"
 #include "core/test_connection.hpp"
 #include "core/thread_pool.hpp"
-#include "tcp_connection.hpp"
+#include "cpool/connection_pool.hpp"
+#include "cpool/tcp_connection.hpp"
 
 namespace {
 

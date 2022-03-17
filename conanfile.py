@@ -18,7 +18,7 @@ class CPoolConan(ConanFile):
     topics = ("asio", "network", "coroutines", "common-libraries")
     exports = ["LICENSE"]
     exports_sources = ["CMakeLists.txt", "conan.cmake",
-                       "conanfile.py", "include/*", "test/*"]
+                       "conanfile.py", "cpool/*", "test/*"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
     requires = "batteries/main_e95e066d85a6", "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
@@ -57,7 +57,7 @@ class CPoolConan(ConanFile):
 
     def package(self):
         self.copy("LICENSE", dst="licenses")
-        self.copy("*.hpp", dst="include/cpool", src="include")
+        self.copy("*.hpp", dst="include/cpool", src="cpool")
 
     def package_id(self):
         self.info.header_only()

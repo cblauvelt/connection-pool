@@ -5,7 +5,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "ssl_connection.hpp"
+#include "cpool/ssl_connection.hpp"
 
 #include "core/root_certificates.hpp"
 
