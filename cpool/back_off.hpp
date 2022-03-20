@@ -14,9 +14,10 @@ timer_delay(uint8_t num_retries,
     // prevent int rollover
     int retries = std::min(num_retries, (uint8_t)29);
 
-    std::random_device
-        rd; // Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+    // Will be used to obtain a seed for the random number engine
+    std::random_device rd;
+    // Standard mersenne_twister_engine seeded with rd()
+    std::mt19937 gen(rd());
     std::uniform_int_distribution<> distrib(1, 500);
 
     milliseconds retry_time =
