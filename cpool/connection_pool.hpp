@@ -68,6 +68,9 @@ template <class T> class connection_pool {
 
             // cout << "Attempting first connect" << endl;
             auto err = co_await connection->async_connect();
+            if (err.value() == (int)net::error::operation_aborted) {
+                co_return nullptr;
+            }
 
             int attempts = 1;
             while (!connection->connected()) {
