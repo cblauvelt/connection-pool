@@ -15,9 +15,6 @@
 #include <boost/asio/write.hpp>
 
 #include <batteries/errors/error.hpp>
-#include <fmt/core.h>
-
-
 
 namespace cpool {
 

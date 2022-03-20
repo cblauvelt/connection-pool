@@ -9,6 +9,8 @@
 #include <tuple>
 #include <vector>
 
+#include <fmt/format.h>
+
 #include "cpool/client_state.hpp"
 #include "cpool/condition_variable.hpp"
 #include "cpool/timer.hpp"

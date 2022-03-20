@@ -257,7 +257,7 @@ awaitable<void> stop_echo_connection_test(asio::io_context& ctx) {
 
 awaitable<void> multi_stop_echo_connection_test(asio::io_context& ctx,
                                                 uint num_threads) {
-    std::vector<std::jthread> threads;
+    std::vector<std::thread> threads;
     auto executor = co_await net::this_coro::executor;
     auto connection_creator = [&]() -> std::unique_ptr<tcp_connection> {
         return std::make_unique<tcp_connection>(executor, "localhost",
@@ -275,7 +275,7 @@ awaitable<void> multi_stop_echo_connection_test(asio::io_context& ctx,
     cpool::timer timer(executor);
     co_await timer.async_wait(100ms);
     co_await pool.stop();
-    // co_await timer.async_wait(10ms);
+    co_await timer.async_wait(10ms);
 
     ctx.stop();
 
