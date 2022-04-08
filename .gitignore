@@ -1,6 +1,6 @@
 # Build directory
 build/**
-.vscode/settings.json
+.vscode/**
 
 # Prerequisites
 *.d

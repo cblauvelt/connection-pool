@@ -65,10 +65,22 @@ install(
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/cpool"
 )
 
+# create and configure the example targets
+option(BUILD_EXAMPLES "Build examples" OFF)
+message("-- Examples is ${BUILD_EXAMPLES}")
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif(BUILD_EXAMPLES)
+
+
 # create and configure the test targets
-set(BUILD_TESTING ON)
+option(BUILD_TESTING "Build Unit Tests" ON)
 message("-- Testing is ${BUILD_TESTING}")
 if(BUILD_TESTING)
+    if(CPOOL_CPOOL_TRACE_LOGGING)
+        add_compile_definitions(CPOOL_CPOOL_TRACE_LOGGING)
+    endif(CPOOL_CPOOL_TRACE_LOGGING)
+    
 	enable_testing()
     add_subdirectory(test)
 endif(BUILD_TESTING)

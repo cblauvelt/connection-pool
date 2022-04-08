@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-// #include <iostream>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -14,9 +13,6 @@
 
 namespace cpool {
 
-// using std::cout;
-// using std::endl;
-
 template <class T> class connection_pool {
 
   public:
@@ -25,85 +21,97 @@ template <class T> class connection_pool {
                     size_t max_connections = default_max_connections)
         : idle_connections_()
         , busy_connections_()
-        , cv_(std::move(exec))
+        , connection_cv_(exec)
         , stop_(false)
         , constructor_func_(constructor_func)
         , max_connections_(max_connections) {}
 
     [[nodiscard]] awaitable<T*> try_get_connection() {
-        if (stopped()) {
-            co_return nullptr;
-        }
-
         T* connection = nullptr;
         {
             std::lock_guard lock{mtx_};
 
+            if (stopped()) {
+                CPOOL_TRACE_LOG("CPOOL", "pool stopped")
+                // cause all waiters to stop
+                connection_cv_.notify_all();
+                co_return nullptr;
+            }
+
+            // we can't get an idle connection and we're already at max
+            // connections
+            if (idle_connections_.empty() &&
+                busy_connections_.size() >= max_size()) {
+                CPOOL_TRACE_LOG("CPOOL", "max connections of {} reached",
+                                max_size());
+                co_return nullptr;
+            }
+
             // if there's an idle connection ready, return the connection
             if (!idle_connections_.empty()) {
-                // cout << "Idle connection available" << endl;
+                CPOOL_TRACE_LOG("CPOOL", "idle connection available")
                 auto first_connection = idle_connections_.begin();
                 connection = first_connection->first;
 
                 auto node = idle_connections_.extract(first_connection);
                 busy_connections_.insert(std::move(node));
+
+                co_return connection;
             }
 
-            // we couldnt get a connection from the idle pool so try to create
-            // a new connection
-            if (connection == nullptr &&
-                busy_connections_.size() < max_connections_) {
-                // cout << "Idle connection not available. Creating new
-                // connection" << endl;
-                std::unique_ptr<T> uniq_connection = constructor_func_();
-                connection = uniq_connection.get();
-                busy_connections_.emplace(connection,
-                                          std::move(uniq_connection));
-            }
+            CPOOL_TRACE_LOG(
+                "CPOOL",
+                "idle connection not available, creating new connection")
+            std::unique_ptr<T> uniq_connection = constructor_func_();
+            connection = uniq_connection.get();
+            busy_connections_.emplace(connection, std::move(uniq_connection));
         }
 
-        // attempt connection if not connected
-        if (connection != nullptr && !connection->connected()) {
-            boost::asio::steady_timer timer(connection->get_executor());
+        // attempt connection
+        boost::asio::steady_timer timer(connection->get_executor());
+        int attempts = 0;
 
-            // cout << "Attempting first connect" << endl;
+        do {
+            CPOOL_TRACE_LOG("CPOOL", "connection attempt {} to: {}:{}",
+                            attempts + 1, connection->host(),
+                            connection->port());
             auto err = co_await connection->async_connect();
-            if (err.value() == (int)net::error::operation_aborted) {
-                co_return nullptr;
-            }
 
-            int attempts = 1;
-            while (!connection->connected()) {
-                auto delay = timer_delay(++attempts);
-                // cout << "connection failed; waiting " << delay.count() << "
-                // milliseconds" << endl;
+            if (err) {
+                CPOOL_TRACE_LOG("CPOOL", "error connecting: {}", err.message());
+
+                if (err.value() == (int)net::error::operation_aborted) {
+                    co_return nullptr;
+                }
+
+                auto delay = timer_delay(attempts++);
+                CPOOL_TRACE_LOG("CPOOL", "connection failed; waiting {}ms",
+                                delay.count());
 
                 timer.expires_from_now(delay);
                 co_await timer.async_wait(use_awaitable);
-
-                // cout << "connection attempt " << attempts << endl;
-                auto error = co_await connection->async_connect();
-                if (error.value() == (int)net::error::operation_aborted) {
-                    co_return nullptr;
-                }
             }
-        }
+
+        } while (!connection->connected());
+
+        CPOOL_TRACE_LOG("CPOOL", "connection success to: {}:{}",
+                        connection->host(), connection->port());
 
         co_return connection;
     }
 
     [[nodiscard]] awaitable<T*> get_connection() {
-        T* connection = co_await try_get_connection();
-        while (connection == nullptr) {
-            co_await cv_.async_wait(
-                [&]() { return size_busy() < max_connections_ && !stopped(); });
+        if (stopped()) {
+            co_return nullptr;
+        }
 
-            if (stopped()) {
-                co_return nullptr;
-            }
+        T* connection = nullptr;
+        do {
+            co_await connection_cv_.async_wait(
+                [&]() { return size_busy() < max_size(); });
 
             connection = co_await try_get_connection();
-        }
+        } while (connection == nullptr && !stopped());
 
         co_return connection;
     }
@@ -122,11 +130,11 @@ template <class T> class connection_pool {
         auto uniq_connection = std::move(connIt->second);
         busy_connections_.erase(connIt);
 
-        cv_.notify_one();
+        connection_cv_.notify_one();
         return uniq_connection;
     }
 
-    void release_connection(T* connection) {
+    void release_connection(T* connection) noexcept {
         if (connection == nullptr) {
             return;
         }
@@ -136,28 +144,28 @@ template <class T> class connection_pool {
             // find on busy stack
             auto it = busy_connections_.find(connection);
             if (it == busy_connections_.end()) {
-                // This is a problem, either we have a bug or the
-                // user tried to release the connection twice
-                if (idle_connections_.contains(connection)) {
-                    // it's all good, the user probably released twice
-                    return;
-                }
-
-                // We're about to have a memory leak so throw an error to let
-                // the user know
-                throw std::runtime_error(
-                    "connection could not be released, memory leak possible");
+                return;
             }
 
             // test if connected
             auto node = busy_connections_.extract(it);
-            if (connection->connected()) {
+            if (connection->connected() && !stopped()) {
+                CPOOL_TRACE_LOG("CPOOL", "[{}] returned to idle pool",
+                                static_cast<void*>(connection))
                 idle_connections_.insert(std::move(node));
             }
-            // node goes out of scope and the unique_ptr dies with it
+
+#ifdef CPOOL_CPOOL_TRACE_LOGGING
+            else {
+                // node goes out of scope and the unique_ptr dies with it
+                CPOOL_TRACE_LOG("CPOOL", "[{}] deleting. Busy Size: {}",
+                                static_cast<void*>(connection),
+                                busy_connections_.size());
+            }
+#endif
         }
 
-        cv_.notify_one();
+        connection_cv_.notify_one();
         return;
     }
 
@@ -165,7 +173,6 @@ template <class T> class connection_pool {
         std::lock_guard<std::mutex> guard{mtx_};
         // prevent new connections from being made
         stop_ = true;
-        max_connections_ = 0;
 
         // stop used connections
         // don't clear them, the user still has a raw pointer and this can lead
@@ -179,7 +186,7 @@ template <class T> class connection_pool {
         idle_connections_.clear();
 
         // wake up all coroutines waiting for a connection
-        cv_.notify_all();
+        connection_cv_.notify_all();
 
         co_return;
     }
@@ -199,9 +206,9 @@ template <class T> class connection_pool {
         return busy_connections_.size();
     }
 
-    size_t max_size() const { return max_connections_; }
+    size_t max_size() const { return max_connections_.load(); }
 
-    bool stopped() const { return (bool)stop_; }
+    bool stopped() const { return stop_.load(); }
 
   private:
     static const int default_max_connections = 16;
@@ -209,11 +216,11 @@ template <class T> class connection_pool {
     mutable std::mutex mtx_;
     std::unordered_map<T*, std::unique_ptr<T>> idle_connections_;
     std::unordered_map<T*, std::unique_ptr<T>> busy_connections_;
-    condition_variable cv_;
+    condition_variable connection_cv_;
     std::atomic_bool stop_;
 
     std::function<std::unique_ptr<T>(void)> constructor_func_;
-    size_t max_connections_;
+    std::atomic_size_t max_connections_;
 };
 
 } // namespace cpool

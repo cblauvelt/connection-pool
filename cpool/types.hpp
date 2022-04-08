@@ -16,8 +16,17 @@
 
 #include <batteries/errors/error.hpp>
 
-namespace cpool {
+#ifdef CPOOL_TRACE_LOGGING
+#include <fmt/format.h>
+#include <iostream>
+#define CPOOL_TRACE_LOG(prefix, ...)                                           \
+    (std::cout << fmt::format("[{0}] {1}", prefix, fmt::format(__VA_ARGS__))   \
+               << std::endl);
+#else
+#define CPOOL_TRACE_LOG(prefix, ...)
+#endif
 
+namespace cpool {
 namespace net = boost::asio;
 namespace ssl = net::ssl;
 using namespace boost::asio::experimental::awaitable_operators;
@@ -42,16 +51,16 @@ enum class server_connection_state : uint8_t;
 
 /**
  * @brief The type that is returned from a read attempt.
- * @param error The error code returned. If there was no error it will return a
- * value of 0 or asio::error::Success.
+ * @param error The error code returned. If there was no error it will
+ * return a value of 0 or asio::error::Success.
  * @param bytes_transferred The number of bytes transferred during the read.
  */
 using read_result_t = std::tuple<cpool::error, std::size_t>;
 
 /**
  * @brief The type that is returned from a write attempt.
- * @param error The error code returned. If there was no error it will return a
- * value of 0 or asio::error::Success.
+ * @param error The error code returned. If there was no error it will
+ * return a value of 0 or asio::error::Success.
  * @param bytes_transferred The number of bytes transferred during the read.
  */
 using write_result_t = std::tuple<cpool::error, std::size_t>;
@@ -69,16 +78,16 @@ using connection_state_change_handler = std::function<awaitable<error>(
 namespace detail {
 /**
  * @brief The type that is returned from a read attempt.
- * @param error The error code returned. If there was no error it will return a
- * value of 0 or asio::error::Success.
+ * @param error The error code returned. If there was no error it will
+ * return a value of 0 or asio::error::Success.
  * @param bytes_transferred The number of bytes transferred during the read.
  */
 using asio_read_result_t = std::tuple<boost::system::error_code, std::size_t>;
 
 /**
  * @brief The type that is returned from a write attempt.
- * @param error The error code returned. If there was no error it will return a
- * value of 0 or asio::error::Success.
+ * @param error The error code returned. If there was no error it will
+ * return a value of 0 or asio::error::Success.
  * @param bytes_transferred The number of bytes transferred during the read.
  */
 using asio_write_result_t = std::tuple<boost::system::error_code, std::size_t>;

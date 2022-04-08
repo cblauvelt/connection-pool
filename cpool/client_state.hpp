@@ -47,13 +47,14 @@ enum class client_connection_state : uint8_t {
 
 inline bool
 error_means_client_disconnected(const boost::system::error_code& ec) {
-    if (ec == asio::error::eof || ec == asio::error::broken_pipe ||
+    if (ec == asio::error::eof || ec == asio::error::timed_out ||
+        ec == asio::error::broken_pipe ||
         ec == asio::error::connection_aborted ||
         ec == asio::error::connection_refused ||
         ec == asio::error::connection_reset ||
         ec == asio::error::network_down || ec == asio::error::network_reset ||
         ec == asio::error::network_unreachable ||
-        ec == asio::error::not_connected || ec == asio::error::eof ||
+        ec == asio::error::not_connected ||
         ec == asio::ssl::error::stream_truncated) {
         return true;
     }

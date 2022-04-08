@@ -21,12 +21,13 @@ class CPoolConan(ConanFile):
                        "conanfile.py", "cpool/*", "test/*"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
-    requires = "batteries/main_e95e066d85a6", "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
+    requires = "batteries/main_d24a13f9c670", "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
     build_requires = "gtest/cci.20210126"
-    options = {"cxx_standard": [20], "build_testing": [True, False]}
-    default_options = {"cxx_standard": 20, "build_testing": True}
+    options = {"cxx_standard": [20, 23], "build_testing": [True, False], "CPOOL_TRACE_LOGging": [True, False]}
+    default_options = {"cxx_standard": 20, "build_testing": True, "CPOOL_TRACE_LOGging": False}
 
     def config_options(self):
+        self.settings.compiler.cppstd = self.options.cxx_standard
         if self.settings.os == "Windows":
             del self.options.fPIC
 
@@ -40,7 +41,7 @@ class CPoolConan(ConanFile):
         return re.sub(r'^v', '', version)
 
     def sanitize_branch(self, branch):
-        return re.sub(r'/', '_', branch)
+        return re.sub(r'/', '_', branch)[:12]
 
     def set_version(self):
         git = tools.Git(folder=self.recipe_folder)
@@ -51,9 +52,10 @@ class CPoolConan(ConanFile):
         cmake = CMake(self)
         cmake.definitions["CMAKE_CXX_STANDARD"] = self.options.cxx_standard
         cmake.definitions["BUILD_TESTING"] = self.options.build_testing
+        cmake.definitions["CPOOL_CPOOL_TRACE_LOGGING"] = self.options.CPOOL_TRACE_LOGging
         cmake.configure()
         cmake.build()
-        cmake.test()
+        cmake.test(args="--timeout 10")
 
     def package(self):
         self.copy("LICENSE", dst="licenses")

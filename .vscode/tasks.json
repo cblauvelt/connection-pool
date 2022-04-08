@@ -6,7 +6,7 @@
         {
             "label": "Conan Create",
             "type": "shell",
-            "command": "conan create . --build missing",
+            "command": "conan create . --build missing --build cpool",
             "problemMatcher": []
         },
         {
@@ -29,6 +29,12 @@
             "label": "Clear Build",
             "type": "shell",
             "command": "rm -rf build/*",
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Client",
+            "type": "shell",
+            "command": "CLIENT_PORT=5020 build/bin/client_example",
             "problemMatcher": []
         },
     ]

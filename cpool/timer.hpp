@@ -24,7 +24,7 @@ class timer {
     }
 
     void expires_never() {
-        timer_.cancel();
+        timer_.expires_after(std::chrono::milliseconds::max());
         pending_ = false;
     }
 

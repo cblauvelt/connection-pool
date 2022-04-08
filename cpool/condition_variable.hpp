@@ -4,6 +4,7 @@
 #pragma once
 
 #include <boost/asio.hpp>
+#include <mutex>
 
 #include "cpool/types.hpp"
 
@@ -13,9 +14,11 @@ class condition_variable {
 
   public:
     condition_variable(net::any_io_executor exec)
-        : timer_(std::move(exec)) {
+        : timer_(exec) {
         timer_.expires_at(std::chrono::steady_clock::time_point::max());
     }
+
+    [[nodiscard]] net::awaitable<void> async_wait();
 
     template <class Pred>
     [[nodiscard]] net::awaitable<void> async_wait(Pred pred);
@@ -28,11 +31,16 @@ class condition_variable {
     net::steady_timer timer_;
 };
 
+inline net::awaitable<void> condition_variable::async_wait() {
+    error_code ec;
+    co_await timer_.async_wait(net::redirect_error(net::use_awaitable, ec));
+}
+
 template <class Pred>
 net::awaitable<void> condition_variable::async_wait(Pred pred) {
+    error_code ec;
     while (!pred()) {
-        error_code ec;
-        co_await timer_.async_wait(net::redirect_error(net::use_awaitable, ec));
+        co_await async_wait();
     }
 }
 
