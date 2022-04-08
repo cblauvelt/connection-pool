@@ -21,10 +21,10 @@ class CPoolConan(ConanFile):
                        "conanfile.py", "cpool/*", "test/*"]
     generators = "cmake"
     settings = "os", "arch", "compiler", "build_type"
-    requires = "batteries/main_d24a13f9c670", "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
+    requires = "batteries/main_3f894bfd1597", "boost/1.78.0", "openssl/1.1.1m", "fmt/8.1.1"
     build_requires = "gtest/cci.20210126"
-    options = {"cxx_standard": [20, 23], "build_testing": [True, False], "CPOOL_TRACE_LOGging": [True, False]}
-    default_options = {"cxx_standard": 20, "build_testing": True, "CPOOL_TRACE_LOGging": False}
+    options = {"cxx_standard": [20, 23], "build_testing": [True, False], "cpool_trace_log": [True, False]}
+    default_options = {"cxx_standard": 20, "build_testing": True, "cpool_trace_log": False}
 
     def config_options(self):
         self.settings.compiler.cppstd = self.options.cxx_standard
@@ -52,10 +52,10 @@ class CPoolConan(ConanFile):
         cmake = CMake(self)
         cmake.definitions["CMAKE_CXX_STANDARD"] = self.options.cxx_standard
         cmake.definitions["BUILD_TESTING"] = self.options.build_testing
-        cmake.definitions["CPOOL_CPOOL_TRACE_LOGGING"] = self.options.CPOOL_TRACE_LOGging
+        cmake.definitions["CPOOL_TRACE_LOGGING"] = self.options.cpool_trace_log
         cmake.configure()
         cmake.build()
-        cmake.test(args="--timeout 10")
+        cmake.test()
 
     def package(self):
         self.copy("LICENSE", dst="licenses")
