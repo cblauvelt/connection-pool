@@ -216,7 +216,7 @@ class tcp_connection {
                                  err.message()));
         }
 
-#ifdef CPOOL_CPOOL_TRACE_LOGGING
+#ifdef CPOOL_TRACE_LOGGING
         CPOOL_TRACE_LOG("TCP", "connecting to one of: ");
         for (auto& endpoint_entry : endpoints) {
             CPOOL_TRACE_LOG("TCP", "{}",
@@ -280,27 +280,16 @@ class tcp_connection {
             co_return write_result_t(
                 net::error::make_error_code(net::error::not_connected), 0);
         }
-        // if no timeout, wait forever
+
         if (!timer_.pending()) {
             CPOOL_TRACE_LOG("TCP", "[{}] No timeout pending for write",
                             static_cast<void*>(this));
-            auto [err, bytes_written] = co_await asio::async_write(
-                socket_, buffer, as_tuple(use_awaitable));
-            // CPOOL_TRACE_LOG("TCP", "error writing: {}",
-            // cpool::error(err).message())
-            if (error_means_client_disconnected(err)) {
-                co_await set_state(client_connection_state::disconnected);
-                co_return write_result_t(
-                    net::error::make_error_code(net::error::not_connected),
-                    bytes_written);
-            }
-            co_return write_result_t(err, bytes_written);
+        } else {
+            CPOOL_TRACE_LOG(
+                "TCP", "[{}] Timeout remaining for write: {}",
+                static_cast<void*>(this),
+                (timer_.expires() - std::chrono::steady_clock::now()).count());
         }
-
-        CPOOL_TRACE_LOG(
-            "TCP", "[{}] Timeout remaining for write: {}",
-            static_cast<void*>(this),
-            (timer_.expires() - std::chrono::steady_clock::now()).count());
 
         std::variant<detail::asio_write_result_t, std::monostate> response =
             co_await(
@@ -331,36 +320,6 @@ class tcp_connection {
     template <typename bT>
     [[nodiscard]] awaitable<read_result_t> async_read(const bT& buffer) {
         return async_read(std::move(buffer));
-        // // if no timeout, wait forever
-        // if (!timer_.pending()) {
-        //     auto [err, bytes_read] = co_await asio::async_read(
-        //         socket_, buffer, as_tuple(use_awaitable));
-        //     if (error_means_client_disconnected(err)) {
-        //         co_await set_state(client_connection_state::disconnected);
-        //         co_return std::make_tuple(net::error::not_connected,
-        //                                   bytes_read);
-        //     }
-        //     co_return std::make_tuple(err, bytes_read);
-        // }
-
-        // std::variant<detail::asio_read_result_t, std::monostate> response =
-        //     co_await(
-        //         asio::async_read(socket_, buffer, as_tuple(use_awaitable)) ||
-        //         timer_.async_wait());
-
-        // if (std::holds_alternative<std::monostate>(response)) {
-        //     co_return std::make_tuple(
-        //         error(asio::error::make_error_code(net::error::timed_out)),
-        //         0);
-        // }
-
-        // auto [err, bytes_read] =
-        // std::get<detail::asio_read_result_t>(response); if
-        // (error_means_client_disconnected(err)) {
-        //     co_await set_state(client_connection_state::disconnected);
-        //     co_return std::make_tuple(net::error::not_connected, bytes_read);
-        // }
-        // co_return std::make_tuple(err, bytes_read);
     }
 
     /**
@@ -375,14 +334,14 @@ class tcp_connection {
                 net::error::make_error_code(net::error::not_connected), 0);
         }
 
-        // if no timeout, wait forever
         if (!timer_.pending()) {
-            auto [err, bytes_read] = co_await asio::async_read(
-                socket_, buffer, as_tuple(use_awaitable));
-            if (error_means_client_disconnected(err)) {
-                co_await set_state(client_connection_state::disconnected);
-            }
-            co_return read_result_t(err, bytes_read);
+            CPOOL_TRACE_LOG("TCP", "[{}] No timeout pending for read",
+                            static_cast<void*>(this));
+        } else {
+            CPOOL_TRACE_LOG(
+                "TCP", "[{}] Timeout remaining for read: {}",
+                static_cast<void*>(this),
+                (timer_.expires() - std::chrono::steady_clock::now()).count());
         }
 
         std::variant<detail::asio_read_result_t, std::monostate> response =
@@ -414,14 +373,6 @@ class tcp_connection {
     template <typename bT>
     [[nodiscard]] awaitable<read_result_t> async_read_some(const bT& buffer) {
         return async_read_some(std::move(buffer));
-        // auto [err, bytes_read] =
-        //     co_await socket_.async_read_some(buffer,
-        //     as_tuple(use_awaitable));
-        // if (error_means_client_disconnected(err)) {
-        //     co_await set_state(client_connection_state::disconnected);
-        //     co_return std::make_tuple(net::error::not_connected, bytes_read);
-        // }
-        // co_return std::make_tuple(err, bytes_read);
     }
 
     /**

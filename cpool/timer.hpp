@@ -14,17 +14,23 @@ class timer {
     net::any_io_executor get_executor() { return timer_.get_executor(); }
 
     void expires_at(time_point tp) {
+        if (tp == time_point::max()) {
+            expires_never();
+            return;
+        }
+
         timer_.expires_at(tp);
         pending_ = true;
     }
 
     void expires_after(std::chrono::milliseconds ms) {
+
         timer_.expires_after(ms);
         pending_ = true;
     }
 
     void expires_never() {
-        timer_.expires_after(std::chrono::milliseconds::max());
+        timer_.expires_at(time_point::max());
         pending_ = false;
     }
 
@@ -44,7 +50,8 @@ class timer {
     bool pending() const { return pending_; }
 
     bool expired() const {
-        return (pending_ && timer_.expiry() > std::chrono::steady_clock::now());
+        return (pending_ &&
+                timer_.expiry() <= std::chrono::steady_clock::now());
     }
 
   private:
