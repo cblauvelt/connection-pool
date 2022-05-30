@@ -155,7 +155,7 @@ template <class T> class connection_pool {
                 idle_connections_.insert(std::move(node));
             }
 
-#ifdef CPOOL_CPOOL_TRACE_LOGGING
+#ifdef CPOOL_TRACE_LOGGING
             else {
                 // node goes out of scope and the unique_ptr dies with it
                 CPOOL_TRACE_LOG("CPOOL", "[{}] deleting. Busy Size: {}",

@@ -1,4 +1,4 @@
-#define CPOOL_CPOOL_TRACE_LOGGING
+#define CPOOL_TRACE_LOGGING
 
 #include <cpool/cpool.hpp>
 #include <fmt/format.h>
